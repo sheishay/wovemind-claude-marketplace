@@ -475,3 +475,65 @@ test('the state survives a reload', async ($, on) => {
   await measure($, w, 90)
   expect(w.aborted).toEqual(['t1'])
 })
+
+test('T17: a decimal limit, a Remote Control prompt arms, a new limit replaces the old, a bad argument shows the usage', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Stop immediately']
+  await say($, 'Task until /session-token-utilization gets to 89.5%', { kind: 'bridge' })
+  expect(w.sent.at(-1)!.text).toBe('Task')
+  expect(w.status).toBe('stop at session 89.5% (now 50%), immediate')
+  w.answers = ['Wrap up first']
+  await say($, 'Other until /weekly-token-utilization gets to 60%')
+  expect(w.status).toBe('stop at weekly 60% (no reading yet), wrap-up')
+  await turn($, 't1')
+  await measure($, w, 99, 59) // the replaced session limit no longer counts
+  expect(w.aborted).toEqual([])
+  expect((await run($, 'token-utilization', 'now')).text).toBe('Usage: /token-utilization [off]')
+
+  w.answers = ['Stop immediately']
+  await say($, 'Again until /session-token-utilization gets to 99.5%')
+  await measure($, w, 99)
+  expect(w.aborted).toEqual([])
+  await measure($, w, 100)
+  expect(w.aborted).toEqual(['t1'])
+})
+
+test('T18: another mod\'s prompt after a stop asks; a typed limit during the wrap-up sets it; an idle immediate trip stops background subagents', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 90%')
+  await turn($, 't1')
+  await measure($, w, 90)
+  expect(w.status).toBe('wrapping up, cut off at session 95% (now 90%)')
+  w.answers = ['Stop immediately']
+  await say($, 'Keep going until /session-token-utilization gets to 97%')
+  expect(w.status).toBe('stop at session 97% (now 90%), immediate')
+  await end($, 't1')
+
+  w.agents = [running('bg')]
+  await measure($, w, 97) // idle: no turn to abort, the background subagent is stopped
+  expect(w.aborted).toEqual(['t1'])
+  expect(w.stopped).toEqual(['bg'])
+
+  w.answers = ['No']
+  const asked = w.asked.length
+  expect((await say($, 'continue', { kind: 'plugin', name: 'auto-resume' })).drop).toMatch(/automatic prompt not run/)
+  expect(w.asked.length).toBe(asked + 1)
+})
+
+test('a reload during the wrap-up keeps the ceiling and the wrap-up turn', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 90%')
+  await turn($, 't1')
+  await measure($, w, 90)
+  await end($, 't1')
+  await wrapTurn($, w, 't2')
+  await start($) // the reload
+  expect(w.status).toBe('wrapping up, cut off at session 95% (now 90%)')
+  await end($, 't2', 'Done: A.')
+  expect(w.written[HANDOFF]).toBe('Done: A.')
+})
