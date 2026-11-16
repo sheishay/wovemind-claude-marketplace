@@ -140,6 +140,17 @@ def need(obj, key, path, kind=str, optional=False):
     return val
 
 
+# While build() runs, length errors are collected here instead of raised: the text still renders, so every
+# over-long field in a block is reported in the same run, not only the first one.
+_length_errors = [None]
+
+
+def too_long(msg):
+    if _length_errors[0] is None:
+        raise SpecError(msg)
+    _length_errors[0].append(msg)
+
+
 def text_at(val, where, limit=None):
     """Check one text value, such as a list item, and its word limit when it has one."""
     if not isinstance(val, str) or not val.strip():
@@ -147,8 +158,8 @@ def text_at(val, where, limit=None):
     if "{{" in val or "}}" in val:
         raise SpecError("%s: text may not contain '{{' or '}}'" % where)
     if limit is not None and len(val.split()) > limit:
-        raise SpecError("%s: keep it to %d words or fewer (got %d); turn the rest into a visual or move it into the "
-                        "top-level reference list" % (where, limit, len(val.split())))
+        too_long("%s: keep it to %d words or fewer (got %d); turn the rest into a visual or move it into the "
+                 "top-level reference list" % (where, limit, len(val.split())))
     return val
 
 
@@ -275,7 +286,7 @@ def r_stepper(b, p):
             inner = need(s, "block", sp, dict)
             kind = need(inner, "type", sp + ".block")
             if kind in NOT_VISUAL or kind == "stepper":
-                raise SpecError("%s.block.type: a step may hold one visual block, not %s" % (sp, kind))
+                raise SpecError("%s.block.type: a step may hold one visual block, not %r" % (sp, kind))
             body += render_block(inner, sp + ".block")
         out.append('<li class="step"><h4><span class="num">%d</span>%s</h4>%s</li>' % (
             n + 1, inline(capped(s, "title", sp, "step_title")), body))
@@ -291,7 +302,7 @@ def r_table(b, p):
 
     def cell_text(text, path):
         if isinstance(text, str) and len(text.split()) > LIMITS["cell"]:
-            raise SpecError("%s: keep table cells to %d words or fewer; put sentences in a text block" % (path, LIMITS["cell"]))
+            too_long("%s: keep table cells to %d words or fewer; put sentences in a text block" % (path, LIMITS["cell"]))
         return text_at(text, path)
 
     def cell(tag, text, i, path):
@@ -563,7 +574,7 @@ def r_stats(b, p):
         sp = "%s.items[%d]" % (p, n)
         val = need(s, "value", sp)
         if len(val) > STAT_CHARS:
-            raise SpecError("%s.value: keep it to %d characters, such as \"8 million\" or \"3%%\"" % (sp, STAT_CHARS))
+            too_long("%s.value: keep it to %d characters, such as \"8 million\" or \"3%%\"" % (sp, STAT_CHARS))
         ic = icon(s["icon"], sp + ".icon") if s.get("icon") is not None else ""
         note = capped(s, "note", sp, "stat_note", optional=True)
         out.append('<div class="stat"><p class="stat-v">%s</p><p class="stat-l">%s<span>%s</span></p>%s</div>'
@@ -872,8 +883,16 @@ def check_page_type(spec):
 
 
 def build(spec):
-    _counter[0] = 0
     errors = []
+    _length_errors[0] = errors
+    try:
+        return _build(spec, errors)
+    finally:
+        _length_errors[0] = None
+
+
+def _build(spec, errors):
+    _counter[0] = 0
 
     def attempt(fn, *args):
         """Run one check and keep going after a failure, so a single run reports every bad field."""
@@ -901,7 +920,9 @@ def build(spec):
         short = attempt(capped, s, "short", sp, "short")
         if len(short) > SHORT_CHARS:
             errors.append("%s.short: keep the route label to %d characters so it fits under its dot on a phone" % (sp, SHORT_CHARS))
-        blocks = attempt(check_section, s, sp) or []
+        # A broken section rule still lets its blocks be checked, so their errors are reported in the same run.
+        attempt(check_section, s, sp)
+        blocks = attempt(need, s, "blocks", sp, list) or []
         sid = "sec-%d" % (n + 1)
         route.append('<li><a href="#%s"><span class="dot">%d</span><span class="rl">%s</span></a></li>' % (sid, n + 1, inline(short)))
         body = "".join(attempt(render_block, blk, "%s.blocks[%d]" % (sp, i)) for i, blk in enumerate(blocks))
@@ -914,7 +935,8 @@ def build(spec):
     next_card = attempt(r_next, spec)
 
     if errors:
-        raise SpecError("\n".join(errors))
+        # A malformed block can be named by both the section check and the block itself; report it once.
+        raise SpecError("\n".join(dict.fromkeys(errors)))
 
     minutes = max(1, int(math.ceil(first_read_words(spec) / float(WORDS_PER_MINUTE))))
     lead, shows = STOP_LINE[ptype]
@@ -1241,6 +1263,22 @@ def selftest():
         raise AssertionError("bad late fields were accepted")
     except SpecError as exc:
         assert all(f in str(exc) for f in ("spec.bottom_line", "spec.next_action.text", "spec.reference[2]")), str(exc)
+    # Two over-long fields in one block, and a block error in a section that also breaks a section rule, all appear.
+    deep = json.loads(json.dumps(SAMPLE))
+    for card in deep["sections"][3]["blocks"][1]["cards"]:
+        card["title"] = long_(LIMITS["card_title"])
+    deep["sections"][0]["blocks"].append({"type": "text", "text": long_(38)})
+    deep["sections"][0]["blocks"][1]["items"][0]["label"] = long_(LIMITS["stat_label"])
+    deep["sections"][1]["blocks"].append("not a block")
+    try:
+        build(deep)
+        raise AssertionError("bad fields in one block were accepted")
+    except SpecError as exc:
+        msg = str(exc)
+        assert all(f in msg for f in ("cards[0].title", "cards[1].title", "spec.sections[0].blocks: ",
+                                      "spec.sections[0].blocks[1].items[0].label")), msg
+        assert msg.count("spec.sections[1].blocks[4]: expected an object") == 1, msg
+    assert _length_errors[0] is None
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(title=long_(LIMITS["card_title"])), "spec.sections[3].blocks[1].cards[0].title")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(text=long_(LIMITS["card_text"])), "spec.sections[3].blocks[1].cards[0].text")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(state="great"), "spec.sections[3].blocks[1].cards[0].state")
@@ -1256,7 +1294,7 @@ def selftest():
     rejects(lambda s: blk(s, 2, 0).update(items=[{"label": "x", "value": 1}] * (MAX_CHART_ITEMS + 1)), "spec.sections[2].blocks[0].items")
     rejects(lambda s: blk(s, 1, 0).update(steps=[{"title": "x", "text": "y"}] * (MAX_STEPS + 1)), "spec.sections[1].blocks[0].steps")
     rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "details", "summary": "x", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
-    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
+    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "block.type: a step may hold one visual block, not 'text'")
     rejects(lambda s: sec(s, 0)["blocks"].append({"type": "check", "question": "x", "answer": "y"}), "spec.sections[0].blocks")
     rejects(lambda s: blk(s, 3, 1)["cards"].extend([{"title": "x"}] * 3), "spec.sections[3].blocks[1].cards")
     rejects(lambda s: s.update(gist=dict(VERDICT, alternatives=[{"name": long_(LIMITS["alt_name"]), "why_not": "b"}])), "spec.gist.alternatives[0].name")
