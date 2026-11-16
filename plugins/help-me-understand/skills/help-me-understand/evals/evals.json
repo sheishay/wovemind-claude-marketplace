@@ -1,56 +1,73 @@
 {
   "skill_name": "help-me-understand",
   "evals": [
-    {"id": 0, "name": "verbose-research-report",
-     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/search-research-report.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
-     "expected_output": "A research page whose bottom line recommends Typesense, with a comparison table of the four options (Postgres full-text search, Meilisearch, Typesense, Elasticsearch) that highlights Typesense, a latency chart drawn from the measured p95 numbers, the conditions that would change the verdict, the unresolved warehouse-boost question as an open item, the 2019 ranking-weight remark and the licence history in Also worth knowing, and one next action: run Typesense in shadow mode against the real query log for a week.",
-     "assertions": [
-       "The bottom-line card appears directly under the title and recommends Typesense",
-       "page_type is research and the first section after the bottom line states the verdict and when it holds",
-       "A table compares Postgres full-text search, Meilisearch, Typesense and Elasticsearch, with the Typesense column highlighted",
-       "A bar_chart or dot_chart shows p95 latency with the values 180, 22, 18 and 35 ms; a bar chart starts at zero",
-       "The page states the monthly costs (zero extra, 60, 75 and 410 dollars) and the three days of index sync work that any dedicated engine needs",
-       "The page says when Elasticsearch would be the right choice (catalogue past about 10 million products or heavy aggregations) and when staying on Postgres would be",
-       "The unresolved nearest-warehouse boost rule (14 warehouses, precomputed field or re-ranking, not yet measured) appears on the page",
-       "The Meilisearch cloud-only features caveat and the Typesense GPL-3.0 note appear on the page, at least inside a collapsed block",
-       "The 2019 ranking function that weights brand three times higher, and the Elasticsearch and OpenSearch licence history, are in Also worth knowing, not in the main sections",
-       "Exactly one Next action card, at the end, says to run Typesense in shadow mode against the real query log for a week before switching traffic",
-       "The page shows a reading time, contains no check-yourself prompts, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links",
-       "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
-     ]},
-    {"id": 1, "name": "multi-topic-work-summary",
-     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/sprint-work-summary.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
-     "expected_output": "A work-summary page that opens with what works now on staging (magic-link login, flaky test fix, Node 22 upgrade), then what changed with the decision to remove password login and its reason, then every open item (CSV export streaming, due-date time-zone bug needing a decision, email provider production access, expired-link message), with the README fix and the slow analytics dashboard as tangents, and one next action: request production access from the email provider.",
-     "assertions": [
-       "page_type is work-summary and the first section states what works now: magic-link login, the flaky test fix and the Node 22 upgrade, all on staging",
-       "The magic-link details survive: 15-minute single-use token, hashed in login_tokens, rate limit of 5 requests per email per hour, PR #412",
-       "The decision to remove password login completely is stated with its reasons (double security surface, only 3 percent of users used passwords in 90 days) and the leftover password_hash column",
-       "The flaky test fix (missing ORDER BY, fixed dates, 31 green runs, PR #415) and the node-sass to sass swap (PR #418, image about 90 MB smaller) both appear",
-       "All four open items appear: CSV export needs streaming for about 1.2 million invoices on feature/csv-export; due dates one day early west of UTC needing a decision on migrating old data (issue #421); email provider sandbox needing production access, up to 2 business days, blocking launch; expired-link message (issue #422)",
-       "The due-date open item says plainly that it needs a decision from the reader",
-       "No visible group shows more than about four items; any extra items sit in a collapsed block rather than being dropped",
-       "The slow analytics dashboard (possibly the unindexed events.created_at column) is in Also worth knowing, not in the main sections",
-       "Exactly one Next action card, at the end, says to request production access from the email provider",
-       "The page shows a reading time, contains no check-yourself prompts, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links",
-       "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
-     ]},
-    {"id": 2, "name": "dense-technical-answer",
-     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/postgres-bloat-answer.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
-     "expected_output": "A concept page whose bottom line says the orders table grows because the five-hour reporting transaction stops VACUUM from removing dead tuples and the default autovacuum threshold waits for about 8 million dead tuples. It explains MVCC with a concrete example before the general rule, shows how a dead tuple is created and cleaned up as a stepper or flow, defines its terms once, has one or two check-yourself prompts, lists the four fixes in order, and gives one next action about the reporting transaction.",
-     "assertions": [
-       "page_type is concept and the bottom line names both causes: the long-running reporting transaction and the default autovacuum threshold",
-       "MVCC is explained with a concrete example (such as one UPDATE leaving an old row version behind) before the general rule",
-       "A stepper or flow shows the life of a dead tuple: update or delete, old version kept, dead once no transaction can see it, space reused after VACUUM",
-       "The threshold arithmetic is on the page: 50 + 0.2 x 40 million, about 8 million dead tuples, about ten days at roughly 800,000 dead tuples a day",
-       "The evidence is on the page: about 11 million dead tuples in n_dead_tup and the autovacuum log line showing dead but not yet removable tuples",
-       "The difference between VACUUM, VACUUM FULL (ACCESS EXCLUSIVE lock) and pg_repack is stated, for example in a table or before_after block",
-       "Transaction ID wraparound is explained, with age(datfrozenxid) about 310 million against autovacuum_freeze_max_age of 200 million",
-       "All four fixes appear in order: move or batch the reporting job (read replica with hot_standby_feedback off, or short batched transactions); per-table scale factor 0.01 and threshold 10000 (about 410,000 dead tuples); raise autovacuum_vacuum_cost_limit to about 1000; run pg_repack once to reclaim about 35 percent of 62 GB",
-       "Terms such as dead tuple, MVCC and the xmin horizon are each defined once (glossary strip or first use) and used consistently afterwards",
-       "The page has one or two check-yourself prompts placed after the idea they test",
-       "Monthly partitioning is in Also worth knowing, not in the main fixes",
-       "Exactly one Next action card, at the end, concerns stopping the reporting transaction from staying open for hours",
-       "The page shows a reading time, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links"
-     ]}
+    {
+      "id": 0,
+      "name": "verbose-research-report",
+      "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/search-research-report.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+      "expected_output": "A research page that opens with a verdict picture of Typesense against Postgres full-text search, Meilisearch and Elasticsearch, each with the reason it lost, and a bottom line recommending Typesense; then short stops for when the verdict holds, a latency chart drawn from the measured p95 numbers, typo handling, a comparison table that highlights Typesense, and the unresolved warehouse-boost question as an open item; evidence detail in the Full detail drawer; the 2019 ranking-weight remark and the licence history in Also worth knowing; and one next action: run Typesense in shadow mode against the real query log for a week.",
+      "assertions": [
+        "The page opens with a verdict gist that names Typesense as the winner and at least two of the other options with a reason each, and the bottom line under it recommends Typesense",
+        "page_type is research and the first stop states when the verdict holds (Elasticsearch past about 10 million products or heavy aggregations, Postgres only if typos are not worth the sync work)",
+        "A table compares Postgres full-text search, Meilisearch, Typesense and Elasticsearch, with the Typesense column highlighted",
+        "A bar_chart or dot_chart shows p95 latency with the values 180, 22, 18 and 35 ms; a bar chart starts at zero",
+        "The page states the monthly costs (zero extra, 60, 75 and 410 dollars) and the three days of index sync work that any dedicated engine needs",
+        "The page says when Elasticsearch would be the right choice (catalogue past about 10 million products or heavy aggregations) and when staying on Postgres would be",
+        "The unresolved nearest-warehouse boost rule (14 warehouses, precomputed field or re-ranking, not yet measured) appears on the page",
+        "The Meilisearch cloud-only features caveat and the Typesense GPL-3.0 note appear on the page, at least in the Full detail drawer",
+        "The 2019 ranking function that weights brand three times higher, and the Elasticsearch and OpenSearch licence history, are in Also worth knowing, not in the main sections",
+        "Exactly one Next action card, at the end, says to run Typesense in shadow mode against the real query log for a week before switching traffic",
+        "Under the bottom line the page says the reader may stop there and gives the stop count and reading time, contains no check-yourself prompts, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links",
+        "Every section contains at least one visual block (any block except text, list, details, check and glossary), and the spec rendered without an \"invalid spec\" error",
+        "No section has more than 60 words of prose (text blocks plus visible list items), there are at most five sections, and supporting detail sits in the top-level reference list rather than in a final section of collapsed blocks",
+        "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "multi-topic-work-summary",
+      "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/sprint-work-summary.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+      "expected_output": "A work-summary page that opens with a status picture of tallies (done, still open, needing a decision, blocking) and a bottom line naming what is on staging and the urgent email-provider request; then stops for the magic-link login that works on staging, the decision to remove password login with its reason, the CI and Node fixes, and every open item (CSV export streaming, due-date time-zone bug needing a decision, email provider production access, expired-link message) as state cards; with the README fix and the slow analytics dashboard as tangents, and one next action: request production access from the email provider.",
+      "assertions": [
+        "The page opens with a status gist of tallies with state icons that together count the three finished items and the four open items, with the bottom line under it",
+        "page_type is work-summary and the first stop states what works now: magic-link login, with the flaky test fix and the Node 22 upgrade also shown as done on staging",
+        "The magic-link details survive: 15-minute single-use token, hashed in login_tokens, rate limit of 5 requests per email per hour, PR #412",
+        "The decision to remove password login completely is stated with its reasons (double security surface, only 3 percent of users used passwords in 90 days) and the leftover password_hash column",
+        "The flaky test fix (missing ORDER BY, fixed dates, 31 green runs, PR #415) and the node-sass to sass swap (PR #418, image about 90 MB smaller) both appear",
+        "All four open items appear: CSV export needs streaming for about 1.2 million invoices on feature/csv-export; due dates one day early west of UTC needing a decision on migrating old data (issue #421); email provider sandbox needing production access, up to 2 business days, blocking launch; expired-link message (issue #422)",
+        "The due-date open item says plainly that it needs a decision from the reader",
+        "No list shows more than four items before its collapsed \"N more\", and every open item has its own card or entry rather than being dropped",
+        "The slow analytics dashboard (possibly the unindexed events.created_at column) is in Also worth knowing, not in the main sections",
+        "Exactly one Next action card, at the end, says to request production access from the email provider",
+        "Under the bottom line the page says the reader may stop there and gives the stop count and reading time, contains no check-yourself prompts, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links",
+        "Every section contains at least one visual block (any block except text, list, details, check and glossary), and the spec rendered without an \"invalid spec\" error",
+        "No section has more than 60 words of prose (text blocks plus visible list items), there are at most five sections, and supporting detail sits in the top-level reference list rather than in a final section of collapsed blocks",
+        "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "dense-technical-answer",
+      "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/postgres-bloat-answer.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+      "expected_output": "A concept page that opens with a chain picture from the five-hour reporting transaction to the growing table, with a bottom line naming both causes: the transaction stops VACUUM from removing dead tuples and the default autovacuum threshold waits for about 8 million. It explains MVCC with a concrete example before the general rule, shows the life of a dead tuple as a chain, stepper or flow, gives the threshold arithmetic as big figures, defines its terms once, has one or two check-yourself prompts, lists the four fixes in order, keeps wraparound and the evidence detail in the Full detail drawer, and gives one next action about the reporting transaction.",
+      "assertions": [
+        "The page opens with a chain gist whose nodes lead from the long reporting transaction to the table growing, with the growth marked as the outcome, and the bottom line under it",
+        "page_type is concept and the bottom line names both causes: the long-running reporting transaction and the default autovacuum threshold",
+        "MVCC is explained with a concrete example (such as one UPDATE leaving an old row version behind) before the general rule",
+        "A chain, stepper or flow shows the life of a dead tuple: update or delete, old version kept, dead once no transaction can see it, space reused after VACUUM",
+        "The threshold arithmetic is on the page: 50 + 0.2 x 40 million, about 8 million dead tuples, about ten days at roughly 800,000 dead tuples a day",
+        "The evidence is on the page: about 11 million dead tuples in n_dead_tup and the autovacuum log line showing dead but not yet removable tuples",
+        "The difference between VACUUM, VACUUM FULL (ACCESS EXCLUSIVE lock) and pg_repack is stated, for example in a table or before_after block",
+        "Transaction ID wraparound is explained, with age(datfrozenxid) about 310 million against autovacuum_freeze_max_age of 200 million",
+        "All four fixes appear in order: move or batch the reporting job (read replica with hot_standby_feedback off, or short batched transactions); per-table scale factor 0.01 and threshold 10000 (about 410,000 dead tuples); raise autovacuum_vacuum_cost_limit to about 1000; run pg_repack once to reclaim about 35 percent of 62 GB",
+        "Terms such as dead tuple, MVCC and the xmin horizon are each defined once (glossary strip or first use) and used consistently afterwards",
+        "The page has one or two check-yourself prompts placed after the idea they test",
+        "Monthly partitioning is in Also worth knowing, not in the main fixes",
+        "Exactly one Next action card, at the end, concerns stopping the reporting transaction from staying open for hours",
+        "Under the bottom line the page says the reader may stop there and gives the stop count and reading time, has no leftover {{...}} placeholders, and contains no http or https URLs other than spec source links",
+        "Every section contains at least one visual block (any block except text, list, details, check and glossary), and the spec rendered without an \"invalid spec\" error",
+        "No section has more than 60 words of prose (text blocks plus visible list items), there are at most five sections, and supporting detail sits in the top-level reference list rather than in a final section of collapsed blocks"
+      ]
+    }
   ]
 }

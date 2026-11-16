@@ -1,19 +1,19 @@
 ---
 name: help-me-understand
-description: Turn a long or tangled answer, research finding, work summary, file or web page into a published HTML page built to be easy to take in, with the bottom line first, small chunks, a visual wherever one carries the point, and plain English. Use only when the user invokes /help-me-understand:help-me-understand, optionally with a topic, a file path or a URL.
+description: Turn a long or tangled answer, research finding, work summary, file or web page into a published HTML page built to be easy to take in, opening with the whole idea as a picture and the bottom line, then a few short stops that each lead with a visual, in plain English. Use only when the user invokes /help-me-understand:help-me-understand, optionally with a topic, a file path or a URL.
 argument-hint: "[topic | file path | URL]  (empty = the last substantial answer in this conversation)"
 disable-model-invocation: true
 ---
 
 # Help me understand
 
-The user asked for this because something in the conversation, or a file or page, is too long or too tangled to follow. Your job is to turn it into one page they can take in quickly and remember: the bottom line first, one idea per section, a visual wherever a visual carries the point, and nothing they need left out.
+The user asked for this because something in the conversation, or a file or page, is too long or too tangled to follow. Your job is to turn it into one page they can take in quickly and remember: the whole idea as a picture first, then a few short stops that each lead with a visual, and nothing they need left out. A page that looks long before it is read puts readers off starting it, so the page should look short and calm at a glance.
 
 Scripts live in `${CLAUDE_SKILL_DIR}/scripts/` (if that variable is not set, they are next to this file under `scripts/`). The page template is in `assets/page-template.html`; never edit it per page, because the script fills it.
 
 References, read only when the step says so:
-- `references/page-types.md`: the section layout for each page type. Read it in step 2, every time.
-- `references/spec-schema.md`: every field of the page spec, the block types, the rules for bespoke SVG, and one complete example. Read it in step 3 before you write the spec, and again when the script rejects a field.
+- `references/page-types.md`: the gist kind and the stops for each page type. Read it in step 2, every time.
+- `references/spec-schema.md`: every field of the page spec, every limit, the block types, the icon names, the rules for bespoke SVG, and one complete example. Read it in step 3 before you write the spec, and again when the script rejects a field.
 - `references/evidence.md`: the research behind the rules below. Read it only if the user asks why the page looks the way it does.
 
 ## Write in full plain English
@@ -45,42 +45,47 @@ Read `references/page-types.md` and choose the type that fits the source:
 - **work-summary:** reports what was done, what changed and what is left.
 - **how-to:** tells the reader how to do something, in order.
 
-Each type has its own section order because readers look for different things first in each: the idea in a concept, the verdict in research, the current state in a work summary, the first step in a how-to.
+Each type has its own gist and stop order because readers look for different things first in each: the idea in a concept, the verdict in research, the current state in a work summary, the first step in a how-to.
 
 ## 3. Write the page spec
 
 Read `references/spec-schema.md` and write `$WORK/spec.json`. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
 
-1. **List every point in the source first.** Every claim, number, step, option, caveat and open item becomes a line in your working list. Map each one to a section, to a collapsed details block, or to "Also worth knowing". Nothing is dropped, because a page that silently loses a caveat is worse than the long original.
-2. **Bottom line.** One or two short sentences, 35 words at most (the script rejects more): what the reader should remember if they read nothing else. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top.
-3. **One main idea per section**, with a heading that says the idea ("A bigger pool is not always faster"), not a topic label ("Pool size"). Headings that state the point let a skimming reader get the argument from the nav alone.
-4. **Cap what is displayed, never what is kept.** Show about four items per group; put the rest in a collapsed `details` block or rely on the `list` block, which collapses items past four by itself. Small visible groups fit in working memory, and collapsing keeps the rest one click away.
-5. **Make the first read much shorter than the source.** The first read is everything visible without opening a collapsed block. For a source over about 400 words, aim for half its length or less. The user came here because the original was too long, so a page that keeps every point at full length in the main line has solved nothing. Get there by letting a table, chart or stepper replace the sentences it makes redundant, by stating each point once, and by moving supporting detail (exact figures behind a conclusion, method, minor caveats, reference numbers) into `details` blocks. The script reports the first-read word count when it renders. Never meet the budget by dropping a visual: a stepper or chart costs few words, and it is the part the original lacked.
-6. **Say only what the source says.** Do not add claims, numbers, conditions or commands of your own, because the reader cannot tell your addition from the original and will trust both equally. A worked example or analogy you add to explain an idea is fine when it is plainly an illustration. If a figure is your own arithmetic from the source's numbers, show the arithmetic.
+Start from the question "what would this page look like as pictures with captions?", not from paragraphs. Readers take in a labelled picture faster than the sentences it replaces, and a page that is mostly pictures looks short enough to start. Prose is the glue between visuals: a sentence or two that says what to notice.
+
+1. **List every point in the source first.** Every claim, number, step, option, caveat and open item becomes a line in your working list. Map each one to a stop, to the top-level `reference` list, or to "Also worth knowing". Nothing is dropped, because a page that silently loses a caveat is worse than the long original.
+2. **Draw the gist, then write the bottom line.** The `gist` is the picture under the title: a `chain` from cause to outcome, a `verdict` of the winner against the alternatives, or a `status` of tallies. Under it, the bottom line says the same thing in one or two sentences, 25 words at most. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top, in both forms.
+3. **At most five stops, one idea each**, with a heading that says the idea ("A bigger pool is not always faster"), not a topic label ("Pool size"), and a `short` label of up to three words for the route strip. Headings that state the point let a skimming reader get the argument from them alone.
+4. **Turn sentences into blocks.** A sentence that delivers a number becomes `stats`; a proportion becomes `icon_array`; a mechanism or cause and effect becomes `chain` (or `flow` when it branches); a judgement per option becomes `cards`; quantities to compare become a chart. Every stop must contain at least one such visual, and its prose (text blocks plus visible list items) stays within 60 words.
+5. **The script enforces every limit; do not fight the caps.** Each text field has a word limit and the script names the field that breaks one. When something will not fit, do not move the words into a looser field, such as a table cell or a caption. Turn them into a visual, or move them into `reference`: the collapsed "Full detail" drawer after the stops, with no limits. Exact figures behind a conclusion, method, quotes, minor caveats and reference numbers belong there.
+6. **Say only what the source says.** Do not add claims, numbers, conditions or commands of your own, because the reader cannot tell your addition from the original and will trust both equally. A worked example or analogy you add to explain an idea is fine when it is plainly an illustration. If a figure is your own arithmetic from the source's numbers, show the arithmetic, for example in a `stats` note.
 7. **Tangents go in `also_worth_knowing`.** Side issues interrupt the main line, but the reader may still need them later.
 8. **One `next_action`:** a concrete thing the reader can do in a few minutes, such as "Open `config/db.yml` and check the pool size". Take it from the source when the source names a next step; otherwise use the smallest first move towards what the source recommends. Knowing something and acting on it are different steps, and a small first step is the one that gets taken.
 9. **Sources:** add a `sources` entry for each file or URL the content came from. For a file, the label is the file name and there is no `url`; for conversation content, leave `sources` out. These are the only links the page may contain.
 
 ### Choose visuals by the shape of the content
 
-Start with the hardest idea in the source, the one a reader is most likely to get lost in, and give it the visual that fits its shape. A page of well-organised text with no picture of its hardest idea has only tidied the original. Then add a visual to any other section whose content has one of the shapes below. Each visual must carry content the reader needs; if you cannot say what a visual shows that the text does not, leave it out.
+Start with the hardest idea in the source, the one a reader is most likely to get lost in, and give it the visual that fits its shape; it is often the gist itself. Then give every other stop the visual its content calls for. Each visual must carry content the reader needs; if you cannot say what a visual shows that the text does not, choose another.
 
 | Content shape | Visual |
 |---|---|
-| A process or sequence | `stepper` (the reader steps through), or `flow` when the branching matters more than the order |
+| A number that matters, with its comparison | `stats` (up to three big figures, each with what it is out of) |
+| A share of a whole | `icon_array` |
+| A mechanism, or cause and effect, in a line | `chain`; `flow` when it branches |
+| A process the reader should follow step by step | `stepper` |
+| Pros and cons per option, a status board, a fix list | `cards` |
 | Quantities to compare | `bar_chart` for sizes from zero, `dot_chart` for values on a shared scale that need not start at zero |
-| Options compared on the same criteria | `table`, with the recommended option's column highlighted. Cells hold a few words or a number (14 words at most); a table of sentences is harder to read than the paragraphs it replaced |
+| Options compared on the same criteria | `table`, with the recommended option's column highlighted; cells hold a few words or a number |
 | Change over time | `timeline` for dated events, `stepper` for stages of one thing changing |
 | One thing before and after | `before_after` |
-| Structure or relationships | `flow`, or a bespoke `svg` when boxes and arrows in layers cannot show it |
+| Structure that boxes and arrows in layers cannot show | a bespoke `svg` |
 
 - Use bars and dots only, labelled directly, because position and length are the encodings people read most accurately and labels next to the mark avoid looking back and forth to a legend. Never use pie charts, area charts or colour alone to carry a value.
-- Label every arrow in a `flow` with what moves or happens, because an unlabelled arrow only says "related somehow".
+- Label every arrow in a `chain` or `flow` with what moves or happens, because an unlabelled arrow only says "related somehow".
+- Icons come from a closed set listed in the schema and always sit next to a text label; pick the one that names the thing, or leave the icon out.
 - Use `check` ("Check yourself") prompts on concept pages only, one or two per page, placed right after the idea they test. Trying to answer before seeing the answer improves memory of that idea; on summaries and how-tos there is nothing to test.
 - Use `glossary` when the page relies on three or more terms the reader may not know.
-- Write a bespoke `svg` only when no other block fits, and follow the rules in `references/spec-schema.md`.
-- If nothing fits a section, use no visual. Text alone beats a decorative picture.
-- Never add motion that plays on its own. The `stepper` is the only animation: the reader controls it with Back, Next and Start over, so it shows a change one frame at a time and never runs past a reader who is still thinking.
+- Never add motion that plays on its own. The `stepper` is the only animation: the reader controls it with Back, Next and Start over, so it never runs past a reader who is still thinking.
 
 ## 4. Render
 
@@ -88,7 +93,9 @@ Start with the hardest idea in the source, the one a reader is most likely to ge
 python3 "${CLAUDE_SKILL_DIR}/scripts/build_page.py" "$WORK/spec.json" "$WORK/<slug>.html" > "$WORK/page.txt"
 ```
 
-Use a short slug from the title, such as `connection-pooling`. If the script exits with "invalid spec", it names the field: fix that field and run it again. On success, `page.txt` holds the page's text, including the text inside collapsed blocks; the naive-reader check reads it. The script also prints a line such as `first read: 420 words; collapsed: 310 words`. Compare the first-read count with `wc -w "$WORK/source.txt"`: if the first read is not clearly shorter than the source, move detail into `details` blocks or cut repetition, then render again.
+Use a short slug from the title, such as `connection-pooling`. If the script exits with "invalid spec", it names the field and the limit: fix that field, by turning it into a visual or moving the overflow into `reference`, and run it again. On success, `page.txt` holds the page's text, including the text inside collapsed blocks; the naive-reader check reads it.
+
+The script also prints a balance line such as `first read: 280 words (prose 60, in visuals 160, other 60); visual blocks: 7; collapsed: 510 words`. The first read is everything visible without opening a collapsed block. Compare it with `wc -w "$WORK/source.txt"`: for a source over about 400 words, aim for half its length or less, with most of it inside visuals rather than prose. If it is not, state each point once, let a visual replace the sentences it makes redundant, and move supporting detail into `reference`, then render again. Never meet the budget by dropping a visual: it costs few words, and it is the part the original lacked.
 
 ## 5. Check with two Haiku subagents
 
@@ -100,7 +107,7 @@ Spawn both checks in one message so they run in parallel. Each checks a fixed re
 Give the subagents file paths rather than pasted text. Pasting is slow, and a paraphrase pasted in place of the real page means the check tests your paraphrase. A subagent knows nothing about this conversation, so the brief must stand on its own. The replies arrive as messages when each subagent finishes; they come one at a time, so end your turn and wait until both are in instead of sleeping or polling.
 
 Then judge the replies yourself:
-- A missing point that is really in the source goes into the spec, in a `details` block, a caption or "Also worth knowing", so the fix does not push the first read back over its budget.
+- A missing point that is really in the source goes into the spec, usually in `reference` or "Also worth knowing", so the fix does not push the first read back over its budget.
 - An added item that is not a plain illustration or shown arithmetic comes out of the spec.
 - A wrong or "not answered" reply means the page is unclear on that point: rewrite that part, often by moving it higher, adding an example, or giving it a visual.
 

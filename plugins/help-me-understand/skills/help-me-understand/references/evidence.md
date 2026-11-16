@@ -41,6 +41,19 @@ No single font is best for everyone: Wallace et al. (2022), ACM Transactions on 
 **Bottom line first, concise scannable text, and details collapsed until wanted.**
 These come from usability practice rather than controlled trials. Concise, scannable and objective writing improved the usability of web pages in Morkes & Nielsen (1997), https://www.nngroup.com/articles/concise-scannable-and-objective-how-to-write-for-the-web/. Bottom-line-first and progressive disclosure are standard practice built on that line of work.
 
+## The picture-first layout
+
+The page opens with a picture of the whole idea, shows a route of a few numbered stops, and leads each stop with a visual. The sources below support the direction of these choices; no effect sizes are claimed.
+
+- **A plain, simple first screen.** Visual complexity lowers how appealing a website looks, and the judgement forms within the first 50 milliseconds: Tuch et al. (2012), https://research.google/pubs/the-role-of-visual-complexity-and-prototypicality-regarding-first-impression-of-websites-working-towards-understanding-aesthetic-judgments/ . This is why the opening is one picture and one sentence, and why the system font and quiet styling stay.
+- **A page that looks easy to read gets started.** Instructions in a font that is harder to read made a task seem longer and harder, and lowered willingness to do it: Song & Schwarz (2008), Psychological Science 19(10), https://pubmed.ncbi.nlm.nih.gov/19000208/ .
+- **Icon arrays for proportions.** A systematic review found that visual aids such as icon arrays help people understand proportions and risks: Garcia-Retamero & Cokely (2017), Human Factors.
+- **Diagrams that show how ideas connect.** Graphic organizers beat outlines for learning the relations between ideas: Robinson & Kiewra (1995), Journal of Educational Psychology 87. Replications are mixed, so this is a direction, not a guarantee.
+- **One idea per step, text linked to its visual.** A layout that showed one idea per step with linked text and visuals gave better comprehension than a plain vertical layout: Zhi, Ottley & Metoyer (2019), Computer Graphics Forum, https://diglib.eg.org/handle/10.1111/cgf13719 .
+- **A picture is not knowledge by itself.** An infographic was liked more than a plain text summary but produced no gain in knowledge: Buljan et al. (2018), Journal of Clinical Epidemiology 97. Every visual therefore has to carry content, which is why each block is built from the source's own points.
+
+What each part aims at: the opening picture, the route strip and the stop count aim at willingness to start reading. Comprehension gains, where the research shows them, come from the blocks that show structure, quantity or sequence (chains, flows, icon arrays, charts, steppers), not from the opening picture. The line that tells the reader they may stop after the bottom line, and the progress cues (route marking and the scroll bar), have no direct trial behind them; they are kept because they are cheap and follow from the findings above.
+
 ## The ADHD-specific rules
 
 Working memory mediates the reading comprehension difficulties seen in ADHD: Parks et al. (2022), Journal of Attention Disorders, https://journals.sagepub.com/doi/10.1177/10870547211068047. Readers with ADHD also recall fewer of a text's central ideas: Yeari & Lavie (2021). That is the reason for stating the central idea outright, keeping visible groups small, and putting nothing important where it must be held in mind.
