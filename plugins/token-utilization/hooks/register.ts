@@ -253,6 +253,11 @@ export const register: Register = on => {
       const root = await $.session.root()
       try {
         if (e.reason !== 'answer') throw new Error(`the wrap-up turn ended with ${e.reason}`)
+        // A repository can commit any of these as a symbolic link; writing through one would land
+        // outside the project, so a link anywhere below the root refuses the save.
+        for (const p of ['.claude', '.claude/handoffs', '.claude/handoffs/.gitignore', path]) {
+          if (await $.fs.stat(`${root}/${p}`).then(s => s.isLink, () => false)) throw new Error(`${p} is a symbolic link`)
+        }
         await $.fs.write(`${root}/${path}`, e.answer)
         await $.fs.write(`${root}/.claude/handoffs/.gitignore`, '*\n')
         $.ui.log(`token-utilization: handoff notes saved to ${path}`)

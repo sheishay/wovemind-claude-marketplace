@@ -25,6 +25,8 @@ function engine(on: On) {
     asked: [] as string[],
     notified: [] as string[],
     written: {} as Record<string, string>,
+    links: [] as string[], // paths that are symbolic links
+
     logs: [] as string[],
     status: undefined as string | undefined,
     gate: undefined as Promise<void> | undefined, // while set, session.usage waits on it
@@ -48,6 +50,10 @@ function engine(on: On) {
   on('turn.abort', (_, e) => (w.aborted.push(e.turnId), { value: undefined }))
   on('session.send', (_, e) => (w.messages.push({ to: e.to, text: e.text }), { isDelivered: true }))
   on('fs.write', (_, e) => ((w.written[e.path] = e.text), { value: undefined }))
+  on('fs.stat', (_, e) => {
+    if (!w.links.includes(e.path)) throw new Error('ENOENT')
+    return { value: { kind: 'other', size: 0, mtimeMs: 0, isLink: true } }
+  })
   on('tool.call', (_, e) => {
     if (e.tool === 'AskUserQuestion') {
       const q = (e as never as { questions: { question: string }[] }).questions[0]!.question
@@ -438,6 +444,21 @@ test('T15: a stop saved by session.measure is not overwritten by a slower hook h
   await Promise.all([ending, measuring])
   expect((await run($, 'token-utilization')).text).toMatch(/stopped\.$/)
   expect(w.status).toBe('stopped at the usage limit')
+})
+
+test('T16: a symbolic link under the project root refuses the handoff save', async ($, on) => {
+  const w = engine(on)
+  w.links = ['/proj/.claude/handoffs/.gitignore']
+  await start($)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 90%')
+  await turn($, 't1')
+  await measure($, w, 90)
+  await end($, 't1')
+  await wrapTurn($, w, 't2')
+  await end($, 't2', 'notes')
+  expect(w.written).toEqual({})
+  expect(w.logs.at(-1)).toBe('token-utilization: handoff notes not saved to .claude/handoffs/HANDOFF-e139ab55.md: Error: .claude/handoffs/.gitignore is a symbolic link')
 })
 
 test('the state survives a reload', async ($, on) => {
