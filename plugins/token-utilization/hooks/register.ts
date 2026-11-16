@@ -26,8 +26,9 @@ const IMMEDIATE = 'Stop immediately'
 const WRAP = 'Wrap up first'
 const YES = 'Yes, run it'
 const ACTIVE = ['pending', 'running', 'waiting']
-// In the main wrap-up prompt only: its turn is found by this text in turn.start, which the engine
-// gives as "The token-utilization plugin sent a message:\n<prompt>…".
+// In the main wrap-up prompt only. Its turn is the one whose turn.start text, framed by the engine
+// as "The token-utilization plugin sent a message:\n<prompt>…", holds this; text that merely quotes
+// the sentence (a task notification, a peer message) lacks the frame.
 const WRAP_MARK = 'End with handoff notes as your final message'
 
 function parse(text: string) {
@@ -217,7 +218,7 @@ export const register: Register = on => {
       await $.store.set(await turnKey($), e.turnId)
       // Only the mod's own wrap-up prompt starts the wrap-up turn; a turn queued ahead of it
       // (a task notification, a scheduled prompt) leaves the state waiting.
-      if (e.text.includes(WRAP_MARK)) {
+      if (e.text.startsWith(`The ${$.plugin.name} plugin sent a message:`) && e.text.includes(WRAP_MARK)) {
         await change(async () => {
           const s = await load($)
           if (s?.phase === 'wrapping' && !s.wrapTurnId) await save($, { ...s, wrapTurnId: e.turnId })

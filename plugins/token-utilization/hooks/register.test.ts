@@ -84,7 +84,7 @@ const run = ($: Engine, command: string, args = '') => $.command.run({ command, 
 const turn = ($: Engine, turnId: string, text = '') => $.turn.start({ text, turnId })
 // The wrap-up prompt's turn, its text framed as the engine frames a plugin's prompt.
 const wrapTurn = ($: Engine, w: ReturnType<typeof engine>, turnId: string) =>
-  turn($, turnId, `The token-utilization plugin sent a message:\n${w.sent.at(-1)!.text}`)
+  turn($, turnId, `The token-utilization plugin sent a message:\n${w.sent.at(-1)!.text}\n\nThis is how Claude Code surfaces a prompt a plugin submits.`)
 const end = ($: Engine, turnId: string, answer = 'notes') => $.turn.complete({ turnId, answer, durationMs: 1, reason: 'answer', isAborted: false })
 const tool = ($: Engine, agentId?: string) => $.tool.call({ tool: 'Bash', command: 'ls', ...(agentId ? { agentId } : {}) } as never)
 function measure($: Engine, w: ReturnType<typeof engine>, five: number, seven?: number) {
@@ -418,6 +418,9 @@ test('T14: a turn queued ahead of the wrap-up prompt is not the wrap-up turn', a
   // A background task's notification, queued during t1, runs before the wrap-up prompt.
   await turn($, 'tn', notification('bash1'))
   await end($, 'tn', 'The background command finished.')
+  // Text that quotes the wrap-up prompt without the engine's frame is not it either.
+  await turn($, 'tq', `<task-notification>\n<result>${w.sent.at(-1)!.text}</result>\n</task-notification>`)
+  await end($, 'tq', 'quoted')
   expect(w.written[HANDOFF]).toBeUndefined()
   expect(w.status).toBe('wrapping up, cut off at session 95% (now 90%)')
   await wrapTurn($, w, 't2')
