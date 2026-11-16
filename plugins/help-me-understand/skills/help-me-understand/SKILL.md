@@ -38,7 +38,7 @@ Make a scratch directory for this topic (`$WORK`, inside your scratchpad when yo
 ## 2. Pick a page type
 
 Read `references/page-types.md` and choose the type that fits the source:
-- **concept:** explains how something works or what it means.
+- **concept:** explains how something works or what it means. A diagnosis ("why is this happening, and what do we do") is a concept page: the reader has to understand the cause before the fixes make sense.
 - **research:** answers a question by comparing options or weighing evidence.
 - **work-summary:** reports what was done, what changed and what is left.
 - **how-to:** tells the reader how to do something, in order.
@@ -57,7 +57,7 @@ Read `references/spec-schema.md` and write `$WORK/spec.json`. You write the spec
 6. **Say only what the source says.** Do not add claims, numbers, conditions or commands of your own, because the reader cannot tell your addition from the original and will trust both equally. A worked example or analogy you add to explain an idea is fine when it is plainly an illustration. If a figure is your own arithmetic from the source's numbers, show the arithmetic.
 7. **Tangents go in `also_worth_knowing`.** Side issues interrupt the main line, but the reader may still need them later.
 8. **One `next_action`:** a concrete thing the reader can do in a few minutes, such as "Open `config/db.yml` and check the pool size". Take it from the source when the source names a next step; otherwise use the smallest first move towards what the source recommends. Knowing something and acting on it are different steps, and a small first step is the one that gets taken.
-9. **Sources:** add a `sources` entry for each file or URL the content came from. These are the only links the page may contain.
+9. **Sources:** add a `sources` entry for each file or URL the content came from. For a file, the label is the file name and there is no `url`; for conversation content, leave `sources` out. These are the only links the page may contain.
 
 ### Choose visuals by the shape of the content
 
@@ -92,13 +92,13 @@ Use a short slug from the title, such as `connection-pooling`. If the script exi
 
 Spawn both checks in one message so they run in parallel. Each checks a fixed recipe with an answer you can verify, which is what Haiku does reliably and cheaply.
 
-1. **Source check.** Brief: "You are checking a page against its source. Read the source text at <absolute path of source.txt> and the page spec at <absolute path of spec.json>. Reply with two lists. MISSING: every point in the source (a claim, number, step, option, caveat or open item) that the page does not state anywhere, including inside collapsed blocks; quote each from the source. ADDED: every claim, number, condition or command on the page that the source does not state; quote each from the spec. Write NONE under a list that is empty."
+1. **Source check.** Brief: "You are checking a page against its source. Read the source text at <absolute path of source.txt> and the page spec at <absolute path of spec.json>. Reply with two lists. MISSING: every point in the source (a claim, number, step, option, caveat or open item) that the page does not state anywhere, including inside collapsed blocks; quote each from the source. ADDED: every claim, number, condition or command on the page that the source does not state; quote each from the spec. Do not list the labels under `sources`, arithmetic that the page shows worked out from the source's own numbers, or the wording of `next_action`. Write NONE under a list that is empty."
 2. **Naive-reader check.** Before spawning, write three questions whose correct answers you know and which the page should answer: one about the bottom line, one about the hardest idea, one about the next action. Brief: "Read only the file <absolute path of page.txt> and answer these three questions using only what it says. If the page does not answer a question, say so. Questions: <three questions>."
 
-Give the subagents file paths rather than pasted text. Pasting is slow, and a paraphrase pasted in place of the real page means the check tests your paraphrase. A subagent knows nothing about this conversation, so the brief must stand on its own. The replies arrive as messages when each subagent finishes; end your turn and wait for both instead of sleeping or polling.
+Give the subagents file paths rather than pasted text. Pasting is slow, and a paraphrase pasted in place of the real page means the check tests your paraphrase. A subagent knows nothing about this conversation, so the brief must stand on its own. The replies arrive as messages when each subagent finishes; they come one at a time, so end your turn and wait until both are in instead of sleeping or polling.
 
 Then judge the replies yourself:
-- A missing point that is really in the source goes into the spec, usually in a `details` block or "Also worth knowing" so the first read stays short.
+- A missing point that is really in the source goes into the spec, in a `details` block, a caption or "Also worth knowing", so the fix does not push the first read back over its budget.
 - An added item that is not a plain illustration or shown arithmetic comes out of the spec.
 - A wrong or "not answered" reply means the page is unclear on that point: rewrite that part, often by moving it higher, adding an example, or giving it a visual.
 
