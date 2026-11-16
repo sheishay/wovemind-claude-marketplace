@@ -14,9 +14,9 @@ All text is HTML-escaped. Inside any text you may use two kinds of inline markup
 | `sections` | yes | List of `{ "heading": "...", "blocks": [ ... ] }`. One main idea per section. Each section appears in the "On this page" nav. |
 | `also_worth_knowing` | no | List of short strings: tangents and side notes, shown in a collapsed block after the last section. |
 | `next_action` | yes | `{ "text": "...", "detail": "..." }`. `text` is one concrete action the reader can take now; `detail` (optional) says why or how. |
-| `sources` | no | List of `{ "label": "...", "url": "https://..." }`. `url` is optional and must be `http://` or `https://`. These are the only links the page may contain. |
+| `sources` | no | List of `{ "label": "...", "url": "https://..." }`. `url` is optional and must be `http://` or `https://`. These are the only links the page may contain. Leave the key out, or use `[]`, when there are none. |
 
-The script adds the reading time (about 200 words per minute over all spec text), the scroll progress bar and the section nav itself.
+The script adds the reading time (about 200 words per minute over the first read, which leaves out collapsed text), the scroll progress bar and the section nav itself.
 
 ## Blocks
 
@@ -27,7 +27,7 @@ Every block has a `type`. Optional fields can be left out.
 | `text` | `text` | Prose. Keep paragraphs to two or three sentences. |
 | `list` | `items` (strings), `ordered` (bool, optional) | Parallel points. The first four show; the rest go into a collapsed "N more" automatically. |
 | `stepper` | `steps`: `[{ "title", "text", "block" (optional, any block) }]` | A process or a change over time. Shows one step at a time with Back, Next and Start over. All steps show when printed or without JavaScript. |
-| `table` | `columns` (strings), `rows` (lists of strings, same length as `columns`), `highlight_column` (index, optional), `caption` (optional) | Comparing options across the same criteria. The first cell of each row is the row header. Highlight the recommended option's column. |
+| `table` | `columns` (strings), `rows` (lists of strings, same length as `columns`); `columns[0]` may be `""` when the first column holds row labels, `highlight_column` (index, optional), `caption` (optional) | Comparing options across the same criteria. The first cell of each row is the row header. Highlight the recommended option's column. |
 | `bar_chart` | `items`: `[{ "label", "value" }]`, `title`, `unit`, `caption` (all optional except `items`) | Quantities that compare by size. Values must be zero or more; the axis starts at zero. Each bar is labelled directly. |
 | `dot_chart` | `items`: `[{ "label", "value" }]`, `min`, `max`, `title`, `unit`, `caption` | Values on a shared scale that need not start at zero, such as scores, rates or values that can be negative. `min` and `max` default to the smallest and largest value. |
 | `flow` | `nodes`: `[{ "id", "label" }]`, `edges`: `[{ "from", "to", "label" }]`, `title`, `caption` | Boxes and arrows, laid out top to bottom by the script. Handles chains and simple branching. Loops are rejected: use a `stepper` or an `svg` block for those. Label the arrows with what moves or happens. |

@@ -64,6 +64,15 @@ def need(obj, key, path, kind=str, optional=False):
     return val
 
 
+def text_at(val, where):
+    """Check one text value that has no key of its own, such as a list item."""
+    if not isinstance(val, str) or not val.strip():
+        raise SpecError("%s: expected non-empty text" % where)
+    if "{{" in val or "}}" in val:
+        raise SpecError("%s: text may not contain '{{' or '}}'" % where)
+    return val
+
+
 def check_url(url, path):
     if not re.match(r"https?://[^\s\"'<>]+$", url):
         raise SpecError("%s: source links must be http:// or https:// URLs" % path)
@@ -119,7 +128,7 @@ def r_text(b, p):
 
 def r_list(b, p):
     items = need(b, "items", p, list)
-    lis = ["<li>%s</li>" % inline(need({"i": it}, "i", "%s.items[%d]" % (p, n))) for n, it in enumerate(items)]
+    lis = ["<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n))) for n, it in enumerate(items)]
     tag = "ol" if b.get("ordered") else "ul"
     html = "<%s class=\"list\">%s</%s>" % (tag, "".join(lis[:VISIBLE_ITEMS]), tag)
     if len(lis) > VISIBLE_ITEMS:
@@ -153,9 +162,10 @@ def r_table(b, p):
     def cell(tag, text, i, path):
         cls = ' class="hl"' if i == hl else ""
         scope = ' scope="col"' if tag == "th" else ""
-        return "<%s%s%s>%s</%s>" % (tag, cls, scope, inline(need({"c": text}, "c", path)), tag)
+        return "<%s%s%s>%s</%s>" % (tag, cls, scope, inline(text_at(text, path)), tag)
 
-    head = "".join(cell("th", c, i, "%s.columns[%d]" % (p, i)) for i, c in enumerate(cols))
+    corner = '<th scope="col"></th>' if cols[0] == "" else None
+    head = "".join(corner if i == 0 and corner else cell("th", c, i, "%s.columns[%d]" % (p, i)) for i, c in enumerate(cols))
     body = []
     for r, row in enumerate(rows):
         if not isinstance(row, list) or len(row) != len(cols):
@@ -164,7 +174,7 @@ def r_table(b, p):
         for i, c in enumerate(row):
             path = "%s.rows[%d][%d]" % (p, r, i)
             if i == 0:
-                tds.append('<th scope="row"%s>%s</th>' % (' class="hl"' if hl == 0 else "", inline(need({"c": c}, "c", path))))
+                tds.append('<th scope="row"%s>%s</th>' % (' class="hl"' if hl == 0 else "", inline(text_at(c, path))))
             else:
                 tds.append(cell("td", c, i, path))
         body.append("<tr>%s</tr>" % "".join(tds))
@@ -360,7 +370,7 @@ def r_details(b, p):
         inner += paras(need(b, "text", p))
     if b.get("items") is not None:
         inner += "<ul class=\"list\">%s</ul>" % "".join(
-            "<li>%s</li>" % inline(need({"i": it}, "i", "%s.items[%d]" % (p, n))) for n, it in enumerate(need(b, "items", p, list)))
+            "<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n))) for n, it in enumerate(need(b, "items", p, list)))
     if not inner:
         raise SpecError("%s: needs text or items" % p)
     return '<details class="more"><summary>%s</summary>%s</details>' % (inline(need(b, "summary", p)), inner)
@@ -488,6 +498,20 @@ def spec_words(obj):
     return 0
 
 
+def first_read_words(obj):
+    """Count the words a reader sees without opening anything collapsed."""
+    if isinstance(obj, dict):
+        if obj.get("type") == "details":
+            return spec_words(obj.get("summary"))
+        if obj.get("type") == "list":
+            return spec_words((obj.get("items") or [])[:VISIBLE_ITEMS])
+        return sum(first_read_words(v) if isinstance(v, (dict, list)) else spec_words(v) for k, v in obj.items()
+                   if k not in ("type", "id", "from", "to", "url", "svg", "page_type", "answer", "also_worth_knowing", "sources"))
+    if isinstance(obj, list):
+        return sum(first_read_words(x) for x in obj)
+    return spec_words(obj)
+
+
 def build(spec):
     _counter[0] = 0
     if not isinstance(spec, dict):
@@ -513,13 +537,13 @@ def build(spec):
         secs.append('<section id="%s" aria-labelledby="%s-h"><h2 id="%s-h">%s</h2>%s</section>' % (sid, sid, sid, inline(heading), body))
 
     also = ""
-    if spec.get("also_worth_knowing") is not None:
+    if spec.get("also_worth_knowing"):
         items = need(spec, "also_worth_knowing", "spec", list)
-        lis = "".join("<li>%s</li>" % inline(need({"i": t}, "i", "spec.also_worth_knowing[%d]" % n)) for n, t in enumerate(items))
+        lis = "".join("<li>%s</li>" % inline(text_at(t, "spec.also_worth_knowing[%d]" % n)) for n, t in enumerate(items))
         also = '<details class="more also"><summary>Also worth knowing <span class="count">%d</span></summary><ul class="list">%s</ul></details>' % (len(items), lis)
 
     sources = ""
-    if spec.get("sources") is not None:
+    if spec.get("sources"):
         lis = []
         for n, s in enumerate(need(spec, "sources", "spec", list)):
             sp = "spec.sources[%d]" % n
@@ -535,7 +559,7 @@ def build(spec):
     next_card = ('<aside class="next" aria-label="Next action"><div class="eyebrow">Next action</div>'
                  '<p class="next-text">%s</p>%s</aside>') % (inline(need(nxt, "text", "spec.next_action")), detail)
 
-    minutes = max(1, int(math.ceil(spec_words(spec) / float(WORDS_PER_MINUTE))))
+    minutes = max(1, int(math.ceil(first_read_words(spec) / float(WORDS_PER_MINUTE))))
     kind_label = {"concept": "Concept", "research": "Research", "work-summary": "Work summary", "how-to": "How-to"}[ptype]
     header = ('<header class="top"><div class="meta"><span>%s</span><span aria-hidden="true">&middot;</span><span>%d min read</span></div>'
               '<h1>%s</h1><div class="bottom-line" role="note"><div class="eyebrow">Bottom line</div><p>%s</p></div></header>'
@@ -618,6 +642,8 @@ def main(argv):
         fh.write(html)
     text, _ = page_text(html)
     sys.stdout.write(text + "\n")
+    first = first_read_words(spec)
+    sys.stderr.write("first read: %d words; collapsed: %d words\n" % (first, spec_words(spec) - first))
     return 0
 
 
@@ -671,6 +697,17 @@ def selftest():
     for needle in ("min read", "Bottom line", "On this page", "Also worth knowing", "Next action", 'id="progress"', "<code>GET /users</code>", "2 more"):
         assert needle in html, "missing %r" % needle
     assert "xmlns" not in html
+    # Collapsed text (details, check answers, list items past the visible ones, tangents) is not part of the first read.
+    assert 0 < first_read_words(SAMPLE) < spec_words(SAMPLE)
+    assert first_read_words({"type": "list", "items": ["a b"] * (VISIBLE_ITEMS + 3)}) == 2 * VISIBLE_ITEMS
+    assert first_read_words({"type": "details", "summary": "one two", "text": "hidden words here"}) == 2
+    # Empty optional lists mean "none", and a table may have an empty corner header.
+    empty = json.loads(json.dumps(SAMPLE))
+    empty["sources"], empty["also_worth_knowing"] = [], []
+    assert "Sources" not in build(empty)
+    corner = {"title": "Corner Cell Test", "page_type": "research", "bottom_line": "x", "next_action": {"text": "y"},
+              "sections": [{"heading": "h", "blocks": [{"type": "table", "columns": ["", "A"], "rows": [["r", "1"]]}]}]}
+    assert '<th scope="col"></th>' in build(corner)
     assert "A cache keeps a copy" in text and "Open your slowest endpoint" in text
 
     def rejects(mutate, field):
@@ -720,11 +757,12 @@ def selftest():
         with open(spec_path, "w", encoding="utf-8") as fh:
             json.dump(SAMPLE, fh)
         devnull = open(os.devnull, "w")
-        saved, sys.stdout = sys.stdout, devnull
+        saved, saved_err = sys.stdout, sys.stderr
+        sys.stdout = sys.stderr = devnull
         try:
             assert main(["build_page.py", spec_path, out_path]) == 0
         finally:
-            sys.stdout = saved
+            sys.stdout, sys.stderr = saved, saved_err
             devnull.close()
         assert os.path.getsize(out_path) > 1000
     print("build_page.py selftest: OK")

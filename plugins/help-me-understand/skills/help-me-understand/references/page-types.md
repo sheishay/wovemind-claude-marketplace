@@ -23,7 +23,7 @@ For answering a question by comparing options or weighing evidence.
 1. **The verdict.** Which option wins, for whom, and the one reason. The bottom line already states it; this section adds the conditions under which it holds.
 2. **The options side by side.** A `table` with one column per option and one row per criterion, the recommended option highlighted. Use a `bar_chart` or `dot_chart` when a criterion is a number.
 3. **The evidence for each option.** One short section per serious option: what supports it, what counts against it, and how strong the evidence is. Weak or disputed evidence is said to be weak.
-4. **What would change the verdict.** The assumptions it rests on, stated as conditions ("if traffic grows past X, choose B").
+4. **What would change the verdict.** The assumptions it rests on, stated as conditions ("if traffic grows past X, choose B"). Include only conditions the source states; if it states none, leave this section out.
 5. **Options ruled out**, collapsed in `details`, each with the reason it was dropped.
 
 No `check` prompts. The reader is deciding, not learning a concept.

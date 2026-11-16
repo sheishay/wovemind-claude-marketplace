@@ -18,7 +18,7 @@ References, read only when the step says so:
 
 ## Write in full plain English
 
-Write full, plain English in the page and in every subagent brief, regardless of any active terse or caveman mode. The reader came here because the original was hard to follow, and compressed fragments would make it harder again. Apply the rules of `/humanizer:humanizer` to all page text. If that skill is not installed, follow its rules inline: no "not X but Y" contrasts, no forced triads, no dash-heavy sentences, no inflated or salesy claims, no stock AI words, no bold labels used as filler, no one-line closers.
+Write full, plain English in the page and in every subagent brief, regardless of any active terse or caveman mode. The reader came here because the original was hard to follow, and compressed fragments would make it harder again. Apply the rules of `/humanizer:humanizer` to all page text. If that skill is not installed, follow its rules inline: no "not X but Y" contrasts, no forced triads, no dash-heavy sentences, no inflated or salesy claims, no stock AI words, no bold labels used as filler, no one-line closers. Section headings count as page text, so check them too.
 
 Also:
 - Give a concrete example before the general rule. A reader who has seen one real case can hang the rule on it.
@@ -30,9 +30,10 @@ Also:
 
 - **No argument:** use the last substantial answer in this conversation, meaning the most recent reply of yours that explains, reports or summarises something (skip short confirmations and questions). If there is none, ask the user what to explain and stop.
 - **A topic:** use what this conversation already says about it. If the conversation says little, research it the way you normally would, then continue.
-- **A file path or URL:** delegate the reading to a Haiku subagent (see "Subagents" below). Brief it with the path or URL and ask it to return the full content as plain text: every claim, number, step, option, caveat and open question, in the original order, with headings kept. Ask for extraction, not a summary, because the coverage check later compares against this text. For a URL, the subagent uses whatever fetch tool it has; if the fetch fails, tell the user and stop.
+- **A file path:** read the file yourself. You need its exact text to write the page, so a subagent would only add a round trip.
+- **A URL:** delegate the fetch to a Haiku subagent (see "Subagents" below), because a raw web page would fill your context with navigation and markup. Ask it to return the full content as plain text: every claim, number, step, option, caveat and open question, in the original order, with headings kept. Ask for extraction, not a summary, because the source check later compares against this text. If the fetch fails, tell the user and stop.
 
-Keep the full source text: you will hand it to the coverage check in step 5.
+Make a scratch directory for this topic (`$WORK`, inside your scratchpad when you have one) and save the full source text as `$WORK/source.txt`. The checks in step 5 read it from there. On a re-run for the same topic in this conversation, reuse the same directory and file names so the page republishes to the same link.
 
 ## 2. Pick a page type
 
@@ -46,15 +47,17 @@ Each type has its own section order because readers look for different things fi
 
 ## 3. Write the page spec
 
-Read `references/spec-schema.md`. Make a scratch directory for this topic (`$WORK`, inside your scratchpad when you have one) and write `$WORK/spec.json`; on a re-run for the same topic in this conversation, reuse the same directory and file names so the page republishes to the same link. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
+Read `references/spec-schema.md` and write `$WORK/spec.json`. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
 
 1. **List every point in the source first.** Every claim, number, step, option, caveat and open item becomes a line in your working list. Map each one to a section, to a collapsed details block, or to "Also worth knowing". Nothing is dropped, because a page that silently loses a caveat is worse than the long original.
 2. **Bottom line.** One or two sentences: what the reader should remember if they read nothing else. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top.
 3. **One main idea per section**, with a heading that says the idea ("A bigger pool is not always faster"), not a topic label ("Pool size"). Headings that state the point let a skimming reader get the argument from the nav alone.
 4. **Cap what is displayed, never what is kept.** Show about four items per group; put the rest in a collapsed `details` block or rely on the `list` block, which collapses items past four by itself. Small visible groups fit in working memory, and collapsing keeps the rest one click away.
-5. **Tangents go in `also_worth_knowing`.** Side issues interrupt the main line, but the reader may still need them later.
-6. **One `next_action`:** a concrete thing the reader can do in a few minutes, such as "Open `config/db.yml` and check the pool size". Knowing something and acting on it are different steps, and a small first step is the one that gets taken.
-7. **Sources:** add a `sources` entry for each file or URL the content came from. These are the only links the page may contain.
+5. **Make the first read much shorter than the source.** The first read is everything visible without opening a collapsed block. For a source over about 400 words, aim for half its length or less. The user came here because the original was too long, so a page that keeps every point at full length in the main line has solved nothing. Get there by letting a table, chart or stepper replace the sentences it makes redundant, by stating each point once, and by moving supporting detail (exact figures behind a conclusion, method, minor caveats, reference numbers) into `details` blocks. The script reports the first-read word count when it renders.
+6. **Say only what the source says.** Do not add claims, numbers, conditions or commands of your own, because the reader cannot tell your addition from the original and will trust both equally. A worked example or analogy you add to explain an idea is fine when it is plainly an illustration. If a figure is your own arithmetic from the source's numbers, show the arithmetic.
+7. **Tangents go in `also_worth_knowing`.** Side issues interrupt the main line, but the reader may still need them later.
+8. **One `next_action`:** a concrete thing the reader can do in a few minutes, such as "Open `config/db.yml` and check the pool size". Take it from the source when the source names a next step; otherwise use the smallest first move towards what the source recommends. Knowing something and acting on it are different steps, and a small first step is the one that gets taken.
+9. **Sources:** add a `sources` entry for each file or URL the content came from. These are the only links the page may contain.
 
 ### Choose visuals by the shape of the content
 
@@ -83,19 +86,20 @@ Each visual must carry content the reader needs; if you cannot say what a visual
 python3 "${CLAUDE_SKILL_DIR}/scripts/build_page.py" "$WORK/spec.json" "$WORK/<slug>.html" > "$WORK/page.txt"
 ```
 
-Use a short slug from the title, such as `connection-pooling`. If the script exits with "invalid spec", it names the field: fix that field and run it again. On success, `page.txt` holds the page's visible text, exactly what a reader would see; you need it for the naive-reader check.
+Use a short slug from the title, such as `connection-pooling`. If the script exits with "invalid spec", it names the field: fix that field and run it again. On success, `page.txt` holds the page's text, including the text inside collapsed blocks; the naive-reader check reads it. The script also prints a line such as `first read: 420 words; collapsed: 310 words`. Compare the first-read count with `wc -w "$WORK/source.txt"`: if the first read is not clearly shorter than the source, move detail into `details` blocks or cut repetition, then render again.
 
 ## 5. Check with two Haiku subagents
 
 Spawn both checks in one message so they run in parallel. Each checks a fixed recipe with an answer you can verify, which is what Haiku does reliably and cheaply.
 
-1. **Coverage check.** Brief: "You are checking a page against its source. Here is the full source text: <source>. Here is the page spec as JSON: <spec>. List every point in the source (a claim, number, step, option, caveat or open item) that the page does not state anywhere, including inside collapsed blocks. Quote each missing point from the source. If nothing is missing, reply exactly NOTHING MISSING."
-2. **Naive-reader check.** Before spawning, write three questions whose correct answers you know and which the page should answer: one about the bottom line, one about the hardest idea, one about the next action. Brief: "Read only this page text and answer the three questions using only what it says. If the page does not answer a question, say so. Page text: <contents of page.txt>. Questions: <three questions>."
+1. **Source check.** Brief: "You are checking a page against its source. Read the source text at <absolute path of source.txt> and the page spec at <absolute path of spec.json>. Reply with two lists. MISSING: every point in the source (a claim, number, step, option, caveat or open item) that the page does not state anywhere, including inside collapsed blocks; quote each from the source. ADDED: every claim, number, condition or command on the page that the source does not state; quote each from the spec. Write NONE under a list that is empty."
+2. **Naive-reader check.** Before spawning, write three questions whose correct answers you know and which the page should answer: one about the bottom line, one about the hardest idea, one about the next action. Brief: "Read only the file <absolute path of page.txt> and answer these three questions using only what it says. If the page does not answer a question, say so. Questions: <three questions>."
 
-A subagent sees only its brief, so paste the full source text, the full spec and the full page text into the briefs; never refer to "the conversation" or to a file it cannot read.
+Give the subagents file paths rather than pasted text. Pasting is slow, and a paraphrase pasted in place of the real page means the check tests your paraphrase. A subagent knows nothing about this conversation, so the brief must stand on its own. The replies arrive as messages when each subagent finishes; end your turn and wait for both instead of sleeping or polling.
 
 Then judge the replies yourself:
-- A missing point that is really in the source goes into the spec (a section, details block or "Also worth knowing").
+- A missing point that is really in the source goes into the spec, usually in a `details` block or "Also worth knowing" so the first read stays short.
+- An added item that is not a plain illustration or shown arithmetic comes out of the spec.
 - A wrong or "not answered" reply means the page is unclear on that point: rewrite that part, often by moving it higher, adding an example, or giving it a visual.
 
 If anything changed, re-render once (step 4). Do not run the checks a second time; one fix pass catches most problems without turning into a loop. A check that fails to run, returns something that is not an answer to its brief, or contradicts the source in an obvious way is retried once with `model: "sonnet"` instead of being trusted.
@@ -117,4 +121,4 @@ Reply with three things only: the link (or the file path), the bottom line in on
 
 ## Subagents
 
-Use `Agent` with `model: "haiku"` for the mechanical work: reading a file or URL in step 1, and the two checks in step 5. Keep everything that needs judgment on the session model: choosing what the page says, its type, its visuals and its wording, and deciding what to do with the check results. Write every brief in full plain English, include all the text the subagent needs, and ask for the exact output format you want. A failed or suspicious Haiku run is retried once with `model: "sonnet"`; subagents never write the spec, render or publish.
+Use `Agent` with `model: "haiku"` for the mechanical work: fetching a URL in step 1, and the two checks in step 5. Keep everything that needs judgment on the session model: choosing what the page says, its type, its visuals and its wording, and deciding what to do with the check results. Write every brief in full plain English, give the absolute path of every file the subagent must read, and ask for the exact output format you want. A failed or suspicious Haiku run is retried once with `model: "sonnet"`; subagents never write the spec, render or publish.

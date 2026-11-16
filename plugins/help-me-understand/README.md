@@ -39,12 +39,12 @@ You get a link to the page, its bottom line in one sentence and one next action.
 2. **Pick a page type:** concept, research, work summary or how-to. Each has its own section order (see `skills/help-me-understand/references/page-types.md`).
 3. **Write a page spec.** The session model lists every point in the source, maps each to a section, and chooses a visual by the shape of the content.
 4. **Render.** `scripts/build_page.py` turns the spec into one self-contained HTML file from the bundled template. It costs no tokens and takes well under a second.
-5. **Check.** Two Haiku subagents run in parallel: one lists any source point the page left out, and one answers three questions using only the page text. Problems are fixed and the page is re-rendered once.
+5. **Check.** Two Haiku subagents run in parallel: one lists any source point the page left out and anything the page added that the source does not say, and one answers three questions using only the page text. Problems are fixed and the page is re-rendered once.
 6. **Publish** with the Artifact tool, or leave the file if the tool is unavailable.
 
 ## What the page contains
 
-- Title, page type and reading time (about 200 words per minute), then the bottom-line card.
+- Title, page type and reading time (about 200 words per minute, counting only what shows without opening a collapsed block), then the bottom-line card.
 - A small "On this page" section list and a scroll progress bar.
 - Sections with these components, each used only where it carries content: numbered stepper (Back, Next, Start over), comparison table, bar chart, dot chart, flow diagram, timeline, before and after pair, "Check yourself" click-to-reveal prompts (concept pages only), collapsed details, glossary strip, and a slot for a bespoke SVG diagram.
 - "Also worth knowing", a collapsed block for tangents.
