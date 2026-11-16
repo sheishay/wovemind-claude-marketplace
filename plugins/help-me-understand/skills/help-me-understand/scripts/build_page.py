@@ -583,7 +583,7 @@ def r_icon_array(b, p):
 
 def r_cards(b, p):
     out = []
-    for n, c in enumerate(sized(b, "cards", p, 2, 4)):
+    for n, c in enumerate(sized(b, "cards", p, 1, 4)):
         cp = "%s.cards[%d]" % (p, n)
         st = state_of(c, cp, tuple(STATES))
         mark = (icon(STATES[st], cp) + sr("(%s)" % st)) if st else ""
@@ -827,6 +827,16 @@ def r_reference(entries):
 
 def build(spec):
     _counter[0] = 0
+    errors = []
+
+    def attempt(fn, *args):
+        """Run one check and keep going after a failure, so a single run reports every bad field."""
+        try:
+            return fn(*args)
+        except SpecError as exc:
+            errors.append(str(exc))
+            return ""
+
     if not isinstance(spec, dict):
         raise SpecError("spec: expected a JSON object")
     title = need(spec, "title", "spec")
@@ -835,24 +845,27 @@ def build(spec):
     ptype = need(spec, "page_type", "spec")
     if ptype not in PAGE_TYPES:
         raise SpecError("spec.page_type: expected one of %s" % ", ".join(PAGE_TYPES))
-    bottom = capped(spec, "bottom_line", "spec", "bottom_line")
-    gist = r_gist(need(spec, "gist", "spec", dict), "spec.gist")
+    bottom = attempt(capped, spec, "bottom_line", "spec", "bottom_line")
+    gist = attempt(lambda: r_gist(need(spec, "gist", "spec", dict), "spec.gist"))
     nxt = need(spec, "next_action", "spec", dict)
     sections = sized(spec, "sections", "spec", 1, MAX_SECTIONS)
 
     route, secs = [], []
     for n, s in enumerate(sections):
         sp = "spec.sections[%d]" % n
-        heading = capped(s, "heading", sp, "heading")
-        short = capped(s, "short", sp, "short")
+        heading = attempt(capped, s, "heading", sp, "heading")
+        short = attempt(capped, s, "short", sp, "short")
         if len(short) > SHORT_CHARS:
-            raise SpecError("%s.short: keep the route label to %d characters so it fits under its dot on a phone" % (sp, SHORT_CHARS))
-        blocks = check_section(s, sp)
+            errors.append("%s.short: keep the route label to %d characters so it fits under its dot on a phone" % (sp, SHORT_CHARS))
+        blocks = attempt(check_section, s, sp) or []
         sid = "sec-%d" % (n + 1)
         route.append('<li><a href="#%s"><span class="dot">%d</span><span class="rl">%s</span></a></li>' % (sid, n + 1, inline(short)))
-        body = "".join(render_block(blk, "%s.blocks[%d]" % (sp, i)) for i, blk in enumerate(blocks))
+        body = "".join(attempt(render_block, blk, "%s.blocks[%d]" % (sp, i)) for i, blk in enumerate(blocks))
         secs.append('<section id="%s" class="stop" aria-labelledby="%s-h"><h2 id="%s-h"><span class="dot">%d</span><span>%s</span></h2>%s</section>'
                     % (sid, sid, sid, n + 1, inline(heading), body))
+
+    if errors:
+        raise SpecError("\n".join(errors))
 
     reference = r_reference(need(spec, "reference", "spec", list)) if spec.get("reference") else ""
 
@@ -959,7 +972,7 @@ def main(argv):
     try:
         html = build(spec)
     except SpecError as exc:
-        sys.stderr.write("invalid spec: %s\n" % exc)
+        sys.stderr.write("invalid spec:\n%s\n" % exc)
         return 1
     with open(argv[2], "w", encoding="utf-8") as fh:
         fh.write(html)
@@ -1182,7 +1195,16 @@ def selftest():
     rejects(lambda s: blk(s, 3, 0).update(label=long_(LIMITS["ia_label"])), "spec.sections[3].blocks[0].label")
     rejects(lambda s: blk(s, 1, 2)["nodes"].extend([{"icon": "flag", "label": "x"}] * 3), "spec.sections[1].blocks[2].nodes")
     rejects(lambda s: blk(s, 1, 2)["nodes"][0].update(note=long_(LIMITS["node_note"])), "spec.sections[1].blocks[2].nodes[0].note")
-    rejects(lambda s: blk(s, 3, 1)["cards"].pop(), "spec.sections[3].blocks[1].cards")
+    rejects(lambda s: blk(s, 3, 1).update(cards=[]), "spec.sections[3].blocks[1].cards")
+    # One run names every bad field, so a spec is fixed in one pass.
+    both = json.loads(json.dumps(SAMPLE))
+    both["bottom_line"] = long_(LIMITS["bottom_line"])
+    both["sections"][0]["heading"] = long_(LIMITS["heading"])
+    try:
+        build(both)
+        raise AssertionError("two bad fields were accepted")
+    except SpecError as exc:
+        assert "spec.bottom_line" in str(exc) and "spec.sections[0].heading" in str(exc), str(exc)
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(title=long_(LIMITS["card_title"])), "spec.sections[3].blocks[1].cards[0].title")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(text=long_(LIMITS["card_text"])), "spec.sections[3].blocks[1].cards[0].text")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(state="great"), "spec.sections[3].blocks[1].cards[0].state")
