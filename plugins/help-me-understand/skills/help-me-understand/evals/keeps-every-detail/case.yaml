@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: keeps-every-detail
+expected_outcome: |
+  A page that reorganises the report without summarising it. It opens with a gist picture and a bottom line,
+  then stops that each lead with a visual. The job-type table keeps all nine rows and all six columns as a
+  table, the three reasons, five rejected options and four pre-switch checks each keep every item with its
+  numbers, and the worker configuration appears as a verbatim code listing. Each detail sits in the stop it
+  belongs to, and the page never refers the reader back to the source for content.
+context:
+  scaffold_script: place-files.sh

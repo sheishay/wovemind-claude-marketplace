@@ -3,6 +3,7 @@
 
 Usage:
     build_page.py <spec.json> <out.html>
+    build_page.py --coverage <source.txt> <page.txt>
     build_page.py --selftest
 
 The spec format is described in references/spec-schema.md. All spec text is
@@ -11,8 +12,10 @@ checked against an element and attribute allowlist first. Charts, chains, icon
 arrays and flow diagrams are drawn here as inline SVG or HTML, and icons come
 from a closed built-in set, so the page needs no library and no external file.
 
-Every text field has a word limit, enforced here with an error that names the
-field, because limits written only as guidance did not change what got written.
+Labels, headings and other short fields have word limits, enforced here with an
+error that names the field, because they protect the layout. The limits on how
+many stops, rows, items and blocks a page may hold are generous on purpose: the
+page reorganises its source and must be able to hold all of it.
 
 After writing the page, the script prints the page's visible text to stdout,
 so the naive-reader check can be given exactly what a reader would see, and a
@@ -30,7 +33,6 @@ from html.parser import HTMLParser
 
 TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "page-template.html")
 WORDS_PER_MINUTE = 200
-VISIBLE_ITEMS = 4
 PAGE_TYPES = ("concept", "research", "work-summary", "how-to")
 # What the line under the bottom line says, per page type: that this is the whole point, and what the stops add.
 STOP_LINE = {"concept": ("That is the whole idea.", "why"), "research": ("That is the answer.", "why"),
@@ -38,20 +40,25 @@ STOP_LINE = {"concept": ("That is the whole idea.", "why"), "research": ("That i
 
 # Word limits, by the field they apply to. Each is enforced with an error naming the field.
 LIMITS = {
-    "bottom_line": 25, "heading": 9, "short": 3, "caption": 18, "title": 18, "unit": 3,
-    "section_prose": 60, "text": 40, "step_title": 8, "step_text": 28, "term": 4, "definition": 16,
-    "question": 25, "ba_text": 25, "ba_label": 4, "tl_when": 4, "tl_title": 8, "tl_text": 18, "item": 16,
-    "cell": 14, "next_text": 22, "next_detail": 25, "also": 30, "summary": 10, "chart_label": 8,
-    "flow_label": 8, "edge_label": 4, "node_label": 4, "arrow": 3, "node_note": 12, "winner_name": 4,
-    "winner_reason": 6, "alt_name": 4, "why_not": 5, "tally_label": 3, "stat_label": 6, "stat_note": 8,
-    "ia_label": 10, "card_title": 5, "card_text": 14, "point": 8,
+    "bottom_line": 25, "heading": 12, "short": 3, "caption": 30, "title": 18, "unit": 3,
+    "text": 60, "step_title": 8, "step_text": 60, "term": 4, "definition": 30,
+    "question": 25, "ba_text": 50, "ba_label": 4, "tl_when": 4, "tl_title": 8, "tl_text": 40, "item": 60,
+    "cell": 40, "next_text": 22, "next_detail": 40, "also": 60, "summary": 10, "chart_label": 8,
+    "flow_label": 8, "edge_label": 4, "node_label": 4, "arrow": 3, "node_note": 16, "winner_name": 4,
+    "winner_reason": 6, "alt_name": 4, "why_not": 5, "tally_label": 3, "stat_label": 6, "stat_note": 14,
+    "ia_label": 10, "card_title": 5, "card_text": 30, "point": 16,
 }
-MAX_SECTIONS, MAX_TEXT_BLOCKS, MAX_DETAILS = 5, 2, 1
-MAX_LIST_ITEMS, MAX_TERMS, MAX_COLS, MAX_ROWS = 6, 4, 5, 6
-MAX_STEPS, MAX_EVENTS, MAX_CHART_ITEMS, MAX_FLOW_NODES, MAX_CHECKS, MAX_TALLY = 5, 5, 6, 8, 1, 9999
+# How many of a thing a page or block may hold. These are high on purpose: a low count limit can only be met by
+# dropping content or flattening it, which is the one thing the page must not do.
+MAX_SECTIONS = 12
+MAX_LIST_ITEMS, MAX_TERMS, MAX_COLS, MAX_ROWS = 30, 12, 8, 60
+MAX_STEPS, MAX_EVENTS, MAX_CHART_ITEMS, MAX_FLOW_NODES, MAX_CHECKS, MAX_TALLY = 12, 12, 12, 12, 1, 9999
+MAX_STATS, MAX_CARDS, MAX_POINTS = 6, 8, 6
 STAT_CHARS, SHORT_CHARS, ICON_ARRAY_TOTAL = 12, 24, 100
 # Blocks that are reading text or collapsed; every other block is a visual, and each section needs one.
-NOT_VISUAL = {"text", "list", "details", "check", "glossary"}
+NOT_VISUAL = {"text", "list", "details", "check", "glossary", "code"}
+# Blocks that draw their own title; on every other block the title becomes a sub-heading above it.
+OWN_TITLE = {"bar_chart", "dot_chart", "flow", "chain"}
 STATES = {"good": "check-circle", "bad": "cross-circle", "warn": "warning", "info": "info",
           "done": "check-circle", "open": "circle", "blocked": "ban"}
 TALLY_STATES = ("done", "open", "warn", "blocked", "info")
@@ -158,8 +165,8 @@ def text_at(val, where, limit=None):
     if "{{" in val or "}}" in val:
         raise SpecError("%s: text may not contain '{{' or '}}'" % where)
     if limit is not None and len(val.split()) > limit:
-        too_long("%s: keep it to %d words or fewer (got %d); turn the rest into a visual or move it into the "
-                 "top-level reference list" % (where, limit, len(val.split())))
+        too_long("%s: keep it to %d words or fewer (got %d); split it across two fields or blocks, or turn it into "
+                 "a visual, and keep every fact it states" % (where, limit, len(val.split())))
     return val
 
 
@@ -266,13 +273,7 @@ def r_list(b, p):
     items = sized(b, "items", p, 1, MAX_LIST_ITEMS)
     lis = ["<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n), LIMITS["item"])) for n, it in enumerate(items)]
     tag = "ol" if b.get("ordered") else "ul"
-    html = "<%s class=\"list\">%s</%s>" % (tag, "".join(lis[:VISIBLE_ITEMS]), tag)
-    if len(lis) > VISIBLE_ITEMS:
-        rest = len(lis) - VISIBLE_ITEMS
-        start = ' start="%d"' % (VISIBLE_ITEMS + 1) if tag == "ol" else ""
-        html += '<details class="more"><summary>%d more</summary><%s class="list"%s>%s</%s></details>' % (
-            rest, tag, start, "".join(lis[VISIBLE_ITEMS:]), tag)
-    return html
+    return "<%s class=\"list\">%s</%s>" % (tag, "".join(lis), tag)
 
 
 def r_stepper(b, p):
@@ -302,7 +303,8 @@ def r_table(b, p):
 
     def cell_text(text, path):
         if isinstance(text, str) and len(text.split()) > LIMITS["cell"]:
-            too_long("%s: keep table cells to %d words or fewer; put sentences in a text block" % (path, LIMITS["cell"]))
+            too_long("%s: keep table cells to %d words or fewer; put the longer explanation in a text or list block "
+                     "next to the table" % (path, LIMITS["cell"]))
         return text_at(text, path)
 
     def cell(tag, text, i, path):
@@ -513,16 +515,31 @@ def r_check(b, p):
 
 
 def note_body(e, p):
-    """The body of a collapsed note (a details block or a reference entry): paragraphs, a bullet list, or both."""
+    """The body of a collapsed note (a details block or a reference entry): paragraphs, a bullet list, blocks, or all three."""
     if not isinstance(e, dict):
         raise SpecError("%s: expected an object" % p)
     body = paras(need(e, "text", p)) if e.get("text") is not None else ""
     if e.get("items") is not None:
         body += '<ul class="list">%s</ul>' % "".join(
             "<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n))) for n, it in enumerate(need(e, "items", p, list)))
+    if e.get("blocks") is not None:
+        # A note may hold any block, so a table or a code listing keeps its shape when it is collapsed.
+        for n, inner in enumerate(need(e, "blocks", p, list)):
+            ip = "%s.blocks[%d]" % (p, n)
+            if need(inner, "type", ip) in ("details", "check"):
+                raise SpecError("%s.type: a collapsed note may not hold a details or check block" % ip)
+            body += render_block(inner, ip)
     if not body:
-        raise SpecError("%s: needs text or items" % p)
+        raise SpecError("%s: needs text, items or blocks" % p)
     return body
+
+
+def r_code(b, p):
+    """A verbatim listing: only escaped, with no inline markup, so `, ** and {{ show as written."""
+    code = b.get("code")
+    if not isinstance(code, str) or not code.strip():
+        raise SpecError("%s.code: expected non-empty text" % p)
+    return figure("<pre><code>%s</code></pre>" % esc(code.strip("\n")), b.get("caption"), "codefig")
 
 
 def r_details(b, p):
@@ -570,7 +587,7 @@ def r_chain(b, p):
 
 def r_stats(b, p):
     out = []
-    for n, s in enumerate(sized(b, "items", p, 1, 3)):
+    for n, s in enumerate(sized(b, "items", p, 1, MAX_STATS)):
         sp = "%s.items[%d]" % (p, n)
         val = need(s, "value", sp)
         if len(val) > STAT_CHARS:
@@ -600,14 +617,14 @@ def r_icon_array(b, p):
 
 def r_cards(b, p):
     out = []
-    for n, c in enumerate(sized(b, "cards", p, 1, 4)):
+    for n, c in enumerate(sized(b, "cards", p, 1, MAX_CARDS)):
         cp = "%s.cards[%d]" % (p, n)
         st = state_of(c, cp, tuple(STATES))
         mark = (icon(STATES[st], cp) + sr("(%s)" % st)) if st else ""
         text = capped(c, "text", cp, "card_text", optional=True)
         pts = c.get("points") or []
-        if not isinstance(pts, list) or len(pts) > 3:
-            raise SpecError("%s.points: expected a list of at most 3 points" % cp)
+        if not isinstance(pts, list) or len(pts) > MAX_POINTS:
+            raise SpecError("%s.points: expected a list of at most %d points" % (cp, MAX_POINTS))
         lis = []
         for k, pt in enumerate(pts):
             pp = "%s.points[%d]" % (cp, k)
@@ -621,7 +638,7 @@ def r_cards(b, p):
         out.append('<div class="card%s"><h3>%s<span>%s</span></h3>%s%s</div>' % (
             " s-" + st if st else "", mark, inline(capped(c, "title", cp, "card_title")),
             "<p>%s</p>" % inline(text) if text else "", '<ul class="points">%s</ul>' % "".join(lis) if lis else ""))
-    return figure('<div class="cards n%d">%s</div>' % (len(out), "".join(out)), b.get("caption"), "cardsfig")
+    return figure('<div class="cards n%d">%s</div>' % (len(out) if len(out) < 5 else 2, "".join(out)), b.get("caption"), "cardsfig")
 
 
 SVG_TAGS = {"svg", "g", "defs", "marker", "rect", "circle", "ellipse", "line", "polyline", "polygon", "path",
@@ -715,7 +732,7 @@ RENDERERS = {
     "text": r_text, "list": r_list, "stepper": r_stepper, "table": r_table, "bar_chart": r_bar_chart,
     "dot_chart": r_dot_chart, "flow": r_flow, "timeline": r_timeline, "before_after": r_before_after,
     "check": r_check, "details": r_details, "glossary": r_glossary, "svg": r_svg, "chain": r_chain,
-    "stats": r_stats, "icon_array": r_icon_array, "cards": r_cards,
+    "stats": r_stats, "icon_array": r_icon_array, "cards": r_cards, "code": r_code,
 }
 _counter = [0]
 
@@ -730,7 +747,8 @@ def render_block(b, p):
         raise SpecError("%s.ordered: expected true or false" % p)
     _counter[0] += 1
     b = dict(b, _id="v%d" % _counter[0])
-    return '<div class="block b-%s">%s</div>' % (kind.replace("_", "-"), RENDERERS[kind](b, p))
+    sub = '<h3 class="sub">%s</h3>' % inline(b["title"]) if b.get("title") and kind not in OWN_TITLE else ""
+    return '<div class="block b-%s">%s%s</div>' % (kind.replace("_", "-"), sub, RENDERERS[kind](b, p))
 
 
 # ---------------------------------------------------------------- gist
@@ -778,13 +796,10 @@ def spec_words(obj):
 
 
 def first_read_words(obj):
-    """Count the words a reader sees without opening anything collapsed."""
+    """Count the words a reader sees without opening anything collapsed (details bodies, check answers, the drawers)."""
     if isinstance(obj, dict):
         if obj.get("type") == "details":
             return spec_words(obj.get("summary"))
-        if obj.get("type") == "list":
-            items = obj.get("items")
-            return spec_words(items[:VISIBLE_ITEMS] if isinstance(items, list) else items)
         return sum(first_read_words(v) if isinstance(v, (dict, list)) else spec_words(v) for k, v in obj.items()
                    if k not in NOT_TEXT + ("answer", "also_worth_knowing", "sources", "reference"))
     if isinstance(obj, list):
@@ -793,7 +808,7 @@ def first_read_words(obj):
 
 
 def prose_words(block):
-    """First-read words of a text block or of a list's visible items; zero for any other block."""
+    """Words of a text or list block; zero for any other block."""
     return first_read_words(block) if block.get("type") in ("text", "list") else 0
 
 
@@ -815,16 +830,8 @@ def check_section(s, sp):
     if all(k in NOT_VISUAL for k in kinds):
         raise SpecError("%s.blocks: every section needs at least one visual block (anything except %s); turn the "
                         "sentence that carries a number, proportion, mechanism or comparison into one" % (sp, ", ".join(sorted(NOT_VISUAL))))
-    if kinds.count("text") > MAX_TEXT_BLOCKS:
-        raise SpecError("%s.blocks: at most %d text blocks per section" % (sp, MAX_TEXT_BLOCKS))
     if kinds.count("check") > MAX_CHECKS:
         raise SpecError("%s.blocks: at most %d check block per section" % (sp, MAX_CHECKS))
-    if kinds.count("details") > MAX_DETAILS:
-        raise SpecError("%s.blocks: at most %d details block per section; move the rest into the top-level reference list" % (sp, MAX_DETAILS))
-    prose = sum(prose_words(b) for b in blocks)
-    if prose > LIMITS["section_prose"]:
-        raise SpecError("%s.blocks: %d words of prose (text blocks and visible list items); keep it to %d and let a "
-                        "visual carry the rest" % (sp, prose, LIMITS["section_prose"]))
     return blocks
 
 
@@ -941,7 +948,7 @@ def _build(spec, errors):
     minutes = max(1, int(math.ceil(first_read_words(spec) / float(WORDS_PER_MINUTE))))
     lead, shows = STOP_LINE[ptype]
     stops = len(sections)
-    stop_line = "%s %d short stop%s below show%s %s, about %d minute%s." % (
+    stop_line = "%s %d stop%s below show%s %s, about %d minute%s." % (
         lead, stops, "" if stops == 1 else "s", "s" if stops == 1 else "", shows, minutes, "" if minutes == 1 else "s")
     header = ('<header class="top"><h1>%s</h1><div class="hero"><figure class="gist g-%s">%s</figure>'
               '<p class="bottom-line">%s</p></div><p class="stopline">%s</p></header>'
@@ -1003,11 +1010,43 @@ def page_text(html):
     return re.sub(r"\n\s*\n+", "\n", text).strip(), parser
 
 
+# A number, or a name a reader would search for: snake_case, camelCase, a dotted path or a call such as toMonday(x).
+_TOKEN = re.compile(r"\d[\d,]*(?:\.\d+)?|[A-Za-z_][\w./-]*[_.\d][\w./-]*|[A-Za-z]+[a-z][A-Z]\w*")
+
+
+def missing_tokens(source, page):
+    """List the numbers and identifiers of the source that the page text does not contain, in source order.
+
+    This catches the commonest loss, a figure or a name that was summarised away. It cannot see a dropped
+    sentence that has neither, so it supports the source check and does not replace it.
+    """
+    def norm(text):
+        return re.sub(r"(?<=\d),(?=\d)", "", text)
+
+    page = norm(page)
+    seen, gone = set(), []
+    for tok in _TOKEN.findall(norm(source)):
+        tok = tok.rstrip(".,/-")
+        if len(tok) < 2 and not tok.isdigit() or tok in seen:
+            continue
+        seen.add(tok)
+        # A number must not match inside a longer one, so 43 is not "found" in 1437.
+        found = re.search(r"(?<!\d)(?<!\d\.)%s(?!\.?\d)" % re.escape(tok), page) if tok[0].isdigit() else tok in page
+        if not found:
+            gone.append(tok)
+    return gone
+
+
 def main(argv):
     if len(argv) == 2 and argv[1] == "--selftest":
         return selftest()
+    if len(argv) == 4 and argv[1] == "--coverage":
+        with open(argv[2], encoding="utf-8") as src, open(argv[3], encoding="utf-8") as page:
+            gone = missing_tokens(src.read(), page.read())
+        sys.stdout.write("MISSING from the page (%d):\n%s\n" % (len(gone), "\n".join(gone)) if gone else "NONE missing\n")
+        return 0
     if len(argv) != 3:
-        sys.stderr.write("usage: build_page.py <spec.json> <out.html> | --selftest\n")
+        sys.stderr.write("usage: build_page.py <spec.json> <out.html> | --coverage <source.txt> <page.txt> | --selftest\n")
         return 2
     try:
         with open(argv[1], encoding="utf-8") as fh:
@@ -1025,7 +1064,7 @@ def main(argv):
     text, _ = page_text(html)
     sys.stdout.write(text + "\n")
     first, prose, in_visuals, nvis, collapsed = balance(spec)
-    sys.stderr.write("first read: %d words (prose %d, in visuals %d, other %d); visual blocks: %d; "
+    sys.stderr.write("visible: %d words (prose %d, in visuals %d, other %d); visual blocks: %d; "
                      "collapsed: %d words\n" % (first, prose, in_visuals, first - prose - in_visuals, nvis, collapsed))
     return 0
 
@@ -1069,15 +1108,18 @@ SAMPLE = {
             {"type": "bar_chart", "title": "Response time", "unit": " ms", "items": [{"label": "Miss", "value": 40}, {"label": "Hit", "value": 2}], "caption": "Hits are 20 times faster."},
             {"type": "dot_chart", "title": "Hit rate", "unit": "%", "min": 0, "max": 100, "items": [{"label": "Monday", "value": 72}, {"label": "Tuesday", "value": 91}]},
             {"type": "table", "columns": ["Option", "Speed", "Cost"], "rows": [["Redis", "Fast", "Medium"], ["In memory", "Fastest", "Low"]], "highlight_column": 1, "caption": "Speed matters most here."},
-            {"type": "details", "summary": "Why not always cache?", "text": "Stale data.", "items": ["Invalidation is hard."]},
+            {"type": "details", "summary": "Why not always cache?", "text": "Stale data.", "items": ["Invalidation is hard."],
+             "blocks": [{"type": "table", "title": "Stale reads", "columns": ["TTL", "Stale"], "rows": [["60 s", "1%"]]}]},
             {"type": "svg", "caption": "A bespoke sketch.", "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 70\" role=\"img\" aria-label=\"App reads from the cache\"><defs><marker id=\"m\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto\"><path d=\"M0 0L10 5L0 10z\" fill=\"currentColor\"/></marker></defs><rect x=\"10\" y=\"10\" width=\"100\" height=\"40\" rx=\"6\" fill=\"none\" stroke=\"currentColor\"/><text x=\"60\" y=\"35\" text-anchor=\"middle\" font-size=\"13\" fill=\"currentColor\">App</text><line x1=\"110\" y1=\"30\" x2=\"206\" y2=\"30\" stroke=\"currentColor\" marker-end=\"url(#m)\"/><rect x=\"210\" y=\"10\" width=\"100\" height=\"40\" rx=\"6\" fill=\"none\" stroke=\"currentColor\"/><text x=\"260\" y=\"35\" text-anchor=\"middle\" font-size=\"13\" fill=\"currentColor\">Cache</text></svg>"}]},
         {"heading": "When it pays off", "short": "Trade-offs", "blocks": [
             {"type": "icon_array", "count": 3, "total": 100, "label": "requests that miss the cache"},
             {"type": "cards", "cards": [
                 {"title": "Cache in memory", "state": "good", "text": "Fastest option.",
                  "points": [{"sign": "+", "text": "No network hop"}, {"sign": "-", "text": "Lost on restart"}]},
-                {"title": "No cache", "state": "bad", "points": [{"sign": "-", "text": "Every request is slow"}]}]}]}],
-    "reference": [{"title": "Expiry times", "text": "Entries expire after five minutes.", "items": ["Set per key.", "Default is five minutes."]},
+                {"title": "No cache", "state": "bad", "points": [{"sign": "-", "text": "Every request is slow"}]}]},
+            {"type": "code", "title": "The cached call", "code": "v = cache.get(\"{{key}}\")\nif v < 1: **miss** `x`"}]}],
+    "reference": [{"title": "Expiry times", "text": "Entries expire after five minutes.", "items": ["Set per key.", "Default is five minutes."],
+                   "blocks": [{"type": "code", "code": "SET k v EX 300"}]},
                   {"title": "Cache size", "text": "The cache holds 10,000 entries."}],
     "also_worth_knowing": ["Browsers have their own cache."],
     "next_action": {"text": "Open your slowest endpoint and time it twice.", "detail": "If the second call is not faster, nothing is cached."},
@@ -1101,11 +1143,13 @@ def selftest():
     assert not parser.stack, "unclosed tags: %s" % parser.stack
     for kind in RENDERERS:
         assert 'class="block b-%s"' % kind.replace("_", "-") in html, "component %s not rendered" % kind
-    for needle in ("That is the whole idea. 4 short stops below show why, about 2 minutes.", 'class="route"',
-                   "Full detail", "Also worth knowing", "Next action", 'id="progress"', "<code>GET /users</code>", "2 more",
+    for needle in ("That is the whole idea. 4 stops below show why, about 2 minutes.", 'class="route"',
+                   "Full detail", "Also worth knowing", "Next action", 'id="progress"', "<code>GET /users</code>", "<li>six</li>",
+                   '<h3 class="sub">Stale reads</h3>', "<pre><code>SET k v EX 300</code></pre>",
+                   "cache.get(&quot;&#123;&#123;key&#125;&#125;&quot;)\nif v &lt; 1: **miss** `x`",
                    'class="gist g-chain"', 'class="node out"', "invalidates"):
         assert needle in html, "missing %r" % needle
-    for gone in ("On this page", "Bottom line", "&middot;", "eyebrow"):
+    for gone in ("On this page", "Bottom line", "&middot;", "eyebrow", "<details class=\"more\"><summary>2 more"):
         assert gone not in html, "should be gone: %r" % gone
     assert "xmlns" not in html
     # The longest bar holds its value inside; a wide flow keeps at least three quarters of its size.
@@ -1121,13 +1165,16 @@ def selftest():
     assert fmt(0.004) == "0.004" and fmt(-0.001) == "-0.001" and fmt(0.123) == "0.12"
     assert inline("`a**b**c` **d**") == "<code>a**b**c</code> <strong>d</strong>"
     assert wrap("x" * 25, 20) == ["x" * 20, "x" * 5]
-    # Collapsed text (details, check answers, list items past the visible ones, reference, tangents) is not part of the first read.
+    # Collapsed text (details, check answers, reference, tangents) is not counted as visible.
     assert 0 < first_read_words(SAMPLE) < spec_words(SAMPLE)
-    assert first_read_words({"type": "list", "items": ["a b"] * (VISIBLE_ITEMS + 3)}) == 2 * VISIBLE_ITEMS
+    assert first_read_words({"type": "list", "items": ["a b"] * 7}) == 14
+    # The coverage check lists source numbers and identifiers the page lost, and is not fooled by a longer number.
+    assert missing_tokens("Cut 43% of 1,437 rows in host_topics via toMonday(x) at 9.5x.", "1437 rows, host_topics, 19.5x") == ["43", "toMonday", "9.5"]
+    assert missing_tokens("Keep 5 of 1,200 in s3.go, such as .000000", "5 of 1,200 in `s3.go` (.000000)") == []
     assert first_read_words({"type": "details", "summary": "one two", "text": "hidden words here"}) == 2
     assert spec_words({"icon": "database", "label": "two words"}) == 2
     first, prose, in_visuals, nvis, collapsed = balance(SAMPLE)
-    assert first > prose + in_visuals > 0 and prose == 24 and nvis == 11 and collapsed > 0
+    assert first > prose + in_visuals > 0 and prose == 26 and nvis == 11 and collapsed > 0
     # Empty optional lists mean "none", and a table may have an empty corner header.
     empty = json.loads(json.dumps(SAMPLE))
     empty["sources"], empty["also_worth_knowing"], empty["reference"] = [], [], []
@@ -1136,7 +1183,7 @@ def selftest():
               "gist": VERDICT, "sections": [{"heading": "h", "short": "h", "blocks": [
                   {"type": "table", "columns": ["", "A"], "rows": [["r", "1"]]}]}]}
     one = build(corner)
-    assert '<th scope="col"></th>' in one and "That is the answer. 1 short stop below shows why" in one
+    assert '<th scope="col"></th>' in one and "That is the answer. 1 stop below shows why" in one
     assert "A cache keeps a copy" in text and "Open your slowest endpoint" in text
 
     def rejects(mutate, field):
@@ -1198,16 +1245,16 @@ def selftest():
     rejects(lambda s: s.update(gist=dict(STATUS, tallies=[dict(STATUS["tallies"][0], state="good")] * 2)), "spec.gist.tallies[0].state")
     rejects(lambda s: s.update(gist=dict(STATUS, tallies=[dict(STATUS["tallies"][0], count=2.5)] * 2)), "spec.gist.tallies[0].count")
     # Sections.
-    rejects(lambda s: s["sections"].extend([s["sections"][3]] * 2), "spec.sections")
+    rejects(lambda s: s["sections"].extend([s["sections"][3]] * (MAX_SECTIONS - 3)), "spec.sections")
     rejects(lambda s: sec(s, 0).pop("short"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0).update(short="one two three four"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0).update(heading=long_(LIMITS["heading"])), "spec.sections[0].heading")
     rejects(lambda s: sec(s, 0).update(short="Internationalisation considerations"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0)["blocks"].pop(1), "spec.sections[0].blocks")
     rejects(lambda s: sec(s, 3)["blocks"].insert(0, {"type": "text", "text": long_(LIMITS["text"])}), "spec.sections[3].blocks[0].text")
-    rejects(lambda s: sec(s, 0)["blocks"].extend([{"type": "text", "text": "More."}] * 2), "spec.sections[0].blocks")
-    rejects(lambda s: sec(s, 0)["blocks"].append({"type": "text", "text": long_(36)}), "spec.sections[0].blocks: 61 words")
-    rejects(lambda s: sec(s, 2)["blocks"].append({"type": "details", "summary": "x", "text": "y"}), "spec.sections[2].blocks")
+    rejects(lambda s: blk(s, 2, 3)["blocks"].append({"type": "details", "summary": "x", "text": "y"}), "spec.sections[2].blocks[3].blocks[1].type")
+    rejects(lambda s: blk(s, 3, 2).update(code="  "), "spec.sections[3].blocks[2].code")
+    rejects(lambda s: sec(s, 3).update(blocks=[blk(s, 3, 2)]), "spec.sections[3].blocks")
     rejects(lambda s: blk(s, 2, 3).update(summary=long_(LIMITS["summary"])), "spec.sections[2].blocks[3].summary")
     # Text-bearing fields of existing blocks.
     rejects(lambda s: blk(s, 2, 0).update(caption=long_(LIMITS["caption"])), "spec.sections[2].blocks[0].caption")
@@ -1216,15 +1263,15 @@ def selftest():
     rejects(lambda s: blk(s, 1, 0)["steps"][0].update(text=long_(LIMITS["step_text"])), "spec.sections[1].blocks[0].steps[0].text")
     rejects(lambda s: blk(s, 0, 3)["terms"][0].update(term=long_(LIMITS["term"])), "spec.sections[0].blocks[3].terms[0].term")
     rejects(lambda s: blk(s, 0, 3)["terms"][0].update(definition=long_(LIMITS["definition"])), "spec.sections[0].blocks[3].terms[0].definition")
-    rejects(lambda s: blk(s, 0, 3).update(terms=[{"term": "a", "definition": "b"}] * 5), "spec.sections[0].blocks[3].terms")
+    rejects(lambda s: blk(s, 0, 3).update(terms=[{"term": "a", "definition": "b"}] * (MAX_TERMS + 1)), "spec.sections[0].blocks[3].terms")
     rejects(lambda s: blk(s, 0, 4).update(question=long_(LIMITS["question"])), "spec.sections[0].blocks[4].question")
     rejects(lambda s: blk(s, 1, 0)["steps"][1]["block"]["after"].update(text=long_(LIMITS["ba_text"])), "steps[1].block.after.text")
     rejects(lambda s: blk(s, 1, 3)["items"][0].update(title=long_(LIMITS["tl_title"])), "spec.sections[1].blocks[3].items[0].title")
     rejects(lambda s: blk(s, 1, 3)["items"][1].update(text=long_(LIMITS["tl_text"])), "spec.sections[1].blocks[3].items[1].text")
     rejects(lambda s: blk(s, 0, 2)["items"].__setitem__(0, long_(LIMITS["item"])), "spec.sections[0].blocks[2].items[0]")
-    rejects(lambda s: blk(s, 0, 2)["items"].append("seven"), "spec.sections[0].blocks[2].items")
-    rejects(lambda s: blk(s, 2, 2).update(columns=["a"] * 6, rows=[["b"] * 6]), "spec.sections[2].blocks[2].columns")
-    rejects(lambda s: blk(s, 2, 2)["rows"].extend([["a", "b", "c"]] * 5), "spec.sections[2].blocks[2].rows")
+    rejects(lambda s: blk(s, 0, 2).update(items=["x"] * (MAX_LIST_ITEMS + 1)), "spec.sections[0].blocks[2].items")
+    rejects(lambda s: blk(s, 2, 2).update(columns=["a"] * (MAX_COLS + 1), rows=[["b"] * (MAX_COLS + 1)]), "spec.sections[2].blocks[2].columns")
+    rejects(lambda s: blk(s, 2, 2)["rows"].extend([["a", "b", "c"]] * MAX_ROWS), "spec.sections[2].blocks[2].rows")
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(label=long_(LIMITS["chart_label"])), "spec.sections[2].blocks[0].items[0].label")
     rejects(lambda s: blk(s, 1, 1)["edges"][0].update(label=long_(LIMITS["edge_label"])), "spec.sections[1].blocks[1].edges[0].label")
     rejects(lambda s: s["next_action"].update(text=long_(LIMITS["next_text"])), "spec.next_action.text")
@@ -1235,7 +1282,7 @@ def selftest():
     rejects(lambda s: blk(s, 0, 1)["items"][0].update(value="forty milliseconds"), "spec.sections[0].blocks[1].items[0].value")
     rejects(lambda s: blk(s, 0, 1)["items"][0].update(label=long_(LIMITS["stat_label"])), "spec.sections[0].blocks[1].items[0].label")
     rejects(lambda s: blk(s, 0, 1)["items"][1].update(note=long_(LIMITS["stat_note"])), "spec.sections[0].blocks[1].items[1].note")
-    rejects(lambda s: blk(s, 0, 1)["items"].extend([{"value": "1", "label": "x"}] * 2), "spec.sections[0].blocks[1].items")
+    rejects(lambda s: blk(s, 0, 1)["items"].extend([{"value": "1", "label": "x"}] * MAX_STATS), "spec.sections[0].blocks[1].items")
     rejects(lambda s: blk(s, 0, 1)["items"][0].update(icon="dragon"), "spec.sections[0].blocks[1].items[0].icon")
     rejects(lambda s: blk(s, 3, 0).update(total=101), "spec.sections[3].blocks[0].total")
     rejects(lambda s: blk(s, 3, 0).update(count=101), "spec.sections[3].blocks[0].count")
@@ -1267,7 +1314,7 @@ def selftest():
     deep = json.loads(json.dumps(SAMPLE))
     for card in deep["sections"][3]["blocks"][1]["cards"]:
         card["title"] = long_(LIMITS["card_title"])
-    deep["sections"][0]["blocks"].append({"type": "text", "text": long_(38)})
+    deep["sections"][0]["blocks"].append({"type": "check", "question": "x", "answer": "y"})
     deep["sections"][0]["blocks"][1]["items"][0]["label"] = long_(LIMITS["stat_label"])
     deep["sections"][1]["blocks"].append("not a block")
     try:
@@ -1282,7 +1329,7 @@ def selftest():
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(title=long_(LIMITS["card_title"])), "spec.sections[3].blocks[1].cards[0].title")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(text=long_(LIMITS["card_text"])), "spec.sections[3].blocks[1].cards[0].text")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(state="great"), "spec.sections[3].blocks[1].cards[0].state")
-    rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"].extend([{"sign": "+", "text": "x"}] * 2), "spec.sections[3].blocks[1].cards[0].points")
+    rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"].extend([{"sign": "+", "text": "x"}] * MAX_POINTS), "spec.sections[3].blocks[1].cards[0].points")
     rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"][0].update(sign="*"), "spec.sections[3].blocks[1].cards[0].points[0].sign")
     rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"][0].update(text=long_(LIMITS["point"])), "spec.sections[3].blocks[1].cards[0].points[0].text")
     rejects(lambda s: blk(s, 2, 0).update(unit="one two three four"), "spec.sections[2].blocks[0].unit")
@@ -1296,7 +1343,7 @@ def selftest():
     rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "details", "summary": "x", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
     rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "block.type: a step may hold one visual block, not 'text'")
     rejects(lambda s: sec(s, 0)["blocks"].append({"type": "check", "question": "x", "answer": "y"}), "spec.sections[0].blocks")
-    rejects(lambda s: blk(s, 3, 1)["cards"].extend([{"title": "x"}] * 3), "spec.sections[3].blocks[1].cards")
+    rejects(lambda s: blk(s, 3, 1)["cards"].extend([{"title": "x"}] * MAX_CARDS), "spec.sections[3].blocks[1].cards")
     rejects(lambda s: s.update(gist=dict(VERDICT, alternatives=[{"name": long_(LIMITS["alt_name"]), "why_not": "b"}])), "spec.gist.alternatives[0].name")
     rejects(lambda s: s.update(gist=dict(STATUS, tallies=STATUS["tallies"] * 2)), "spec.gist.tallies")
     rejects(lambda s: s.update(gist=dict(STATUS, tallies=[dict(STATUS["tallies"][0], count=MAX_TALLY + 1)] * 2)), "spec.gist.tallies[0].count")

@@ -2,7 +2,7 @@
 
 The page spec is one JSON file. `scripts/build_page.py <spec.json> <out.html>` validates it, renders the page, prints the page's visible text to stdout and prints a word balance line to stderr. If the spec is invalid, the script exits with status 1 and names the bad field, for example `invalid spec: spec.sections[1].blocks[0].nodes[2].arrow: keep it to 3 words or fewer (got 4)`. Fix that field and run it again.
 
-Every limit on this page is enforced by the script. When a field will not fit, do not squeeze the words into another field: turn the sentence into a visual block, or move it into the top-level `reference` list, which has no word limits.
+Every limit on this page is enforced by the script. There are two kinds. Length limits on labels, headings and other short fields protect the layout. Count limits (stops, rows, items) are set high, so that the page can hold everything its source holds. When a label will not fit, shorten it and put the words that came out into a `text` block, a caption or a table cell beside it. Never drop a fact, a row or an item to meet a limit.
 
 All text is HTML-escaped. Inside any text except chart and flow labels (which are drawn as SVG and show markup literally) you may use two kinds of inline markup: `` `code` `` for commands, paths and identifiers, and `**bold**` for the one term a paragraph defines. A blank line inside a `text` value starts a new paragraph. Text may not contain `{{` or `}}`. Word counts split on spaces, so `` `ALTER TABLE orders` `` counts as three words.
 
@@ -14,13 +14,13 @@ All text is HTML-escaped. Inside any text except chart and flow labels (which ar
 | `page_type` | yes | `concept`, `research`, `work-summary` or `how-to`. It sets the wording of the line under the bottom line and is not shown as a label. |
 | `gist` | yes | The opening picture, drawn under the title. See "The gist" below. |
 | `bottom_line` | yes | One or two short sentences, 25 words at most: the single thing to remember. Drawn inside the opening panel, under the gist. |
-| `sections` | yes | One to five stops: `{ "heading", "short", "blocks" }`. See "Sections" below. |
-| `reference` | no | List of `{ "title", "text" and/or "items" }`. Rendered after the sections as one collapsed "Full detail" drawer showing its entry count; each entry is a plain heading with a paragraph or a bullet list. No word limits. This is where exact figures, method, quotes, caveats and the second half of anything that did not fit go. |
-| `also_worth_knowing` | no | List of strings, 30 words each at most: tangents and side notes, in a collapsed block after the reference drawer. |
-| `next_action` | yes | `{ "text", "detail" }`. `text` (22 words at most) is one concrete action the reader can take now; `detail` (optional, 25 words at most) says why or how. |
+| `sections` | yes | One to twelve stops: `{ "heading", "short", "blocks" }`. See "Sections" below. |
+| `reference` | no | List of `{ "title", "text" and/or "items" and/or "blocks" }`. Rendered after the sections as one collapsed "Full detail" drawer showing its entry count; each entry is a heading with paragraphs, a bullet list, any blocks (so a table stays a table), or all three. No word limits on `text` and `items`. Use it only for material that supports the whole page and belongs to no single stop, such as how the numbers were measured. Detail about a stop stays in that stop. |
+| `also_worth_knowing` | no | List of strings, 60 words each at most: asides the source itself treats as side notes, in a collapsed block after the reference drawer. |
+| `next_action` | yes | `{ "text", "detail" }`. `text` (22 words at most) is one concrete action the reader can take now; `detail` (optional, 40 words at most) says why or how. |
 | `sources` | no | List of `{ "label", "url" }`. `url` is optional and must be `http://` or `https://`. These are the only links the page may contain. Leave the key out, or use `[]`, when there are none. |
 
-The script adds the rest: under the bottom line, one quiet line telling the reader they may stop there, with the stop count and the reading time (for example "That is the whole idea. 4 short stops below show why, about 3 minutes."); a route strip of numbered dots linking to each stop, which marks the stop in view; and the scroll progress bar. Reading time is about 200 words per minute over the first read, which leaves out collapsed text.
+The script adds the rest: under the bottom line, one quiet line telling the reader they may stop there, with the stop count and the reading time (for example "That is the whole idea. 4 stops below show why, about 3 minutes."); a route strip of numbered dots linking to each stop, which marks the stop in view; and the scroll progress bar. Reading time is about 200 words per minute over the visible text, which leaves out collapsed blocks.
 
 ## The gist
 
@@ -36,34 +36,36 @@ The gist is the first thing the reader sees, so it should state the whole idea a
 
 Each section is a "stop" with a number, drawn as its own sheet with the heading and number in a tinted band at the top. Visual blocks use the full page width, while text blocks, lists and other reading text keep to about 65 characters per line. The script rejects a section that breaks any of these:
 
-- `heading`: 9 words at most. Write the idea it states, not a topic label.
+- `heading`: 12 words at most. Write the idea it states, not a topic label.
 - `short`: the label under the stop's dot in the route strip, 3 words and 24 characters at most.
-- At least one visual block. A visual is any block except `text`, `list`, `details`, `check` and `glossary`: the first three are reading text, a check is a question, and a glossary is a list of definitions, so none of them shows structure, quantity or sequence.
-- Prose, meaning the words of `text` blocks plus the visible items of `list` blocks, is 60 words at most. A single `text` block is 40 words at most, and a section has at most 2 `text` blocks.
-- At most 1 `details` block and at most 1 `check` block.
+- At least one visual block. A visual is any block except `text`, `list`, `details`, `check`, `glossary` and `code`: reading text, a question, definitions and a listing do not show structure, quantity or sequence.
+- At most 1 `check` block.
+
+A section may hold as many blocks as its content needs. The usual order is the lead visual with a sentence or two, then the stop's detail, each group under a `title`.
 
 ## Blocks
 
-Every block has a `type`. Optional fields can be left out. On every block, `title` and `caption` are 18 words at most and `unit` 3.
+Every block has a `type`. Optional fields can be left out. Every block may have a `title` (18 words at most). Charts, chains and flows draw it as the figure's title; on every other block it becomes a sub-heading above the block, which is how a long stop is divided into labelled parts. `caption` is 30 words at most and `unit` 3.
 
 | `type` | Fields and limits | Use it for |
 |---|---|---|
-| `text` | `text` (40 words) | Prose: the glue between visuals. Two or three short sentences. |
-| `list` | `items` (1 to 6 strings, 16 words each), `ordered` (bool) | Parallel points. The first four show; the rest go into a collapsed "N more". |
-| `stats` | `items`: 1 to 3 of `{ "value", "label", "note", "icon" }` | A sentence that exists to deliver a number. `value` is 12 characters at most ("8 million", "3%", "5 h"), `label` 6 words, `note` 8 words and gives the comparison or denominator ("of 40 million rows"). |
+| `text` | `text` (60 words) | Prose: one short paragraph. Use a second `text` block for a second paragraph instead of cutting the first. |
+| `list` | `items` (1 to 30 strings, 60 words each), `ordered` (bool) | Parallel points: reasons, caveats, rejected options, checks. Every item shows. |
+| `code` | `code` (a string, any length), `caption` | A command, query, config, schema or any other listing, shown exactly as written in a monospace box that scrolls sideways. No inline markup is applied, and `{{` is allowed here. Use `\n` for line breaks. Wrap a listing over about 25 lines in a `details` block in the same stop. |
+| `stats` | `items`: 1 to 6 of `{ "value", "label", "note", "icon" }` | A sentence that exists to deliver a number. `value` is 12 characters at most ("8 million", "3%", "5 h"), `label` 6 words, `note` 14 words and gives the comparison or denominator ("of 40 million rows"). |
 | `icon_array` | `count`, `total`, `label` (10 words) | A proportion ("3 percent of users"). Draws all `total` dots, at most 100, with `count` of them filled. Both are whole numbers. |
-| `chain` | `nodes`: 2 to 5 of `{ "icon", "label", "arrow", "note", "outcome" }`, `title`, `caption` | A mechanism or cause and effect in a line. The same drawing as the gist chain, plus an optional `note` of 12 words under each node. `label` (4 words) and `arrow` (3 words) have the same limits as in the gist. A chain of up to 4 nodes runs left to right on a wide screen; a 5-node chain always stacks top to bottom, because five nodes do not fit side by side without breaking words. Use `flow` instead when it branches. |
-| `cards` | `cards`: 1 to 4 of `{ "title", "state", "text", "points" }`, `caption` | Per-option judgements, status boards and fix lists. `title` is 5 words, `text` 14, `state` one of `good`, `bad`, `warn`, `info`, `done`, `open`, `blocked` (drawn as an icon), and `points` up to 3 of `{ "sign": "+" or "-", "text" }` with 8 words each. |
-| `stepper` | `steps`: 1 to 5 of `{ "title", "text", "block" }` | A process or a change over time, one step at a time with Back, Next and Start over. `title` is 8 words, `text` 28. `block` is optional and must be a visual other than a stepper. Every step shows when printed or without JavaScript. |
-| `table` | `columns` (1 to 5), `rows` (1 to 6, each as long as `columns`), `highlight_column`, `caption` | Options compared across the same criteria. Each cell is 14 words at most. `columns[0]` may be `""` when the first column holds row labels. Highlight the recommended option's column. |
-| `bar_chart` | `items`: 1 to 6 of `{ "label", "value" }`, `title`, `unit`, `caption` | Quantities that compare by size. Values are zero or more, with at least one above zero; the axis starts at zero. `label` is 8 words. |
-| `dot_chart` | `items`: 1 to 6 of `{ "label", "value" }`, `min`, `max`, `title`, `unit`, `caption` | Values on a shared scale that need not start at zero. `min` and `max` default to the smallest and largest value; `max` must be greater than `min`, and every value must lie between them. |
-| `flow` | `nodes`: 1 to 8 of `{ "id", "label" }`, `edges`: `[{ "from", "to", "label" }]`, `title`, `caption` | Boxes and arrows with branching, laid out top to bottom. Node `label` is 8 words, edge `label` 4. Ids must be unique, edges must name existing ids, and loops are rejected. |
-| `timeline` | `items`: 1 to 5 of `{ "when", "title", "text" }` | Dated or ordered events. `when` is 4 words, `title` 8, `text` (optional) 18. |
-| `before_after` | `before` and `after`: `{ "label", "text" }`, `caption` | One thing in two states. `label` (4 words) defaults to Before and After; `text` is 25 words. |
+| `chain` | `nodes`: 2 to 5 of `{ "icon", "label", "arrow", "note", "outcome" }`, `title`, `caption` | A mechanism or cause and effect in a line. The same drawing as the gist chain, plus an optional `note` of 16 words under each node. `label` (4 words) and `arrow` (3 words) have the same limits as in the gist. A chain of up to 4 nodes runs left to right on a wide screen; a 5-node chain always stacks top to bottom, because five nodes do not fit side by side without breaking words. Use `flow` instead when it branches. |
+| `cards` | `cards`: 1 to 8 of `{ "title", "state", "text", "points" }`, `caption` | Per-option judgements, status boards and fix lists. `title` is 5 words, `text` 30, `state` one of `good`, `bad`, `warn`, `info`, `done`, `open`, `blocked` (drawn as an icon), and `points` up to 6 of `{ "sign": "+" or "-", "text" }` with 16 words each. A card is a headline for an option; what the source says beyond that goes in the blocks after the cards. |
+| `stepper` | `steps`: 1 to 12 of `{ "title", "text", "block" }` | A process or a change over time, one step at a time with Back, Next and Start over. `title` is 8 words, `text` 60. `block` is optional and must be a visual other than a stepper. Every step shows when printed or without JavaScript. |
+| `table` | `columns` (1 to 8), `rows` (1 to 60, each as long as `columns`), `highlight_column`, `caption` | Options compared across the same criteria, and any table from the source, with every row and column it had. Each cell is 40 words at most. A wide table scrolls sideways inside its box. `columns[0]` may be `""` when the first column holds row labels. Highlight the recommended option's column. |
+| `bar_chart` | `items`: 1 to 12 of `{ "label", "value" }`, `title`, `unit`, `caption` | Quantities that compare by size. Values are zero or more, with at least one above zero; the axis starts at zero. `label` is 8 words. |
+| `dot_chart` | `items`: 1 to 12 of `{ "label", "value" }`, `min`, `max`, `title`, `unit`, `caption` | Values on a shared scale that need not start at zero. `min` and `max` default to the smallest and largest value; `max` must be greater than `min`, and every value must lie between them. |
+| `flow` | `nodes`: 1 to 12 of `{ "id", "label" }`, `edges`: `[{ "from", "to", "label" }]`, `title`, `caption` | Boxes and arrows with branching, laid out top to bottom. Node `label` is 8 words, edge `label` 4. Ids must be unique, edges must name existing ids, and loops are rejected. |
+| `timeline` | `items`: 1 to 12 of `{ "when", "title", "text" }` | Dated or ordered events. `when` is 4 words, `title` 8, `text` (optional) 40. |
+| `before_after` | `before` and `after`: `{ "label", "text" }`, `caption` | One thing in two states. `label` (4 words) defaults to Before and After; `text` is 50 words. |
 | `check` | `question` (25 words), `answer` | A click-to-reveal "Check yourself" prompt, for concept pages. The answer stays collapsed and has no limit. |
-| `details` | `summary` (10 words), `text` and/or `items` | One collapsed note that belongs inside this stop. The body has no limit. Detail that is not tied to one stop goes in `reference`. |
-| `glossary` | `terms`: 1 to 4 of `{ "term", "definition" }` | The terms the page relies on, each defined once. `term` is 4 words, `definition` 16. |
+| `details` | `summary` (10 words), `text` and/or `items` and/or `blocks` | A collapsed note inside this stop, for bulky verbatim material such as a long code listing or a long table. `blocks` is a list of any blocks except `details` and `check`, so the material keeps its shape. The `summary` names what is inside and how big it is ("Proposed DDL, all 51 columns"). Detail is visible by default; collapse only what would bury the stop. |
+| `glossary` | `terms`: 1 to 12 of `{ "term", "definition" }` | The terms the page relies on, each defined once. `term` is 4 words, `definition` 30. |
 | `svg` | `svg` (one `<svg>` element as a string), `caption` (required) | A bespoke diagram the other blocks cannot draw. |
 
 ### Icons

@@ -438,7 +438,7 @@
     {
       "name": "help-me-understand",
       "source": "./plugins/help-me-understand",
-      "description": "Turns a long or tangled answer, file or web page into a published page that is easy to take in: the whole idea as a picture first, then a few short stops that each lead with a visual, in plain English.",
+      "description": "Reorganises a long or tangled answer, file, web page or artifact into a published page that holds the same information in a form that is easier to take in: the whole idea as a picture first, then numbered stops that each lead with a visual and keep all of their detail, in plain English.",
       "author": {
         "name": "Wovemind"
       },
