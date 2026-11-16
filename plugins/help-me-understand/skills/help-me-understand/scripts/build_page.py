@@ -54,7 +54,7 @@ STAT_CHARS, SHORT_CHARS, ICON_ARRAY_TOTAL = 12, 24, 100
 NOT_VISUAL = {"text", "list", "details", "check", "glossary"}
 STATES = {"good": "check-circle", "bad": "cross-circle", "warn": "warning", "info": "info",
           "done": "check-circle", "open": "circle", "blocked": "ban"}
-TALLY_STATES = ("done", "open", "blocked", "info")
+TALLY_STATES = ("done", "open", "warn", "blocked", "info")
 # Keys whose values are never shown as reading text.
 NOT_TEXT = ("type", "id", "from", "to", "url", "svg", "page_type", "kind", "icon", "state", "sign")
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
@@ -147,7 +147,7 @@ def text_at(val, where, limit=None):
     if "{{" in val or "}}" in val:
         raise SpecError("%s: text may not contain '{{' or '}}'" % where)
     if limit is not None and len(val.split()) > limit:
-        raise SpecError("%s: keep it to %d words or fewer (got %d); move the rest into a details block or the "
+        raise SpecError("%s: keep it to %d words or fewer (got %d); turn the rest into a visual or move it into the "
                         "top-level reference list" % (where, limit, len(val.split())))
     return val
 
@@ -273,8 +273,9 @@ def r_stepper(b, p):
         if s.get("block") is not None:
             # Only a visual may sit inside a step, so a step cannot hide extra prose, collapsed text or a second stepper.
             inner = need(s, "block", sp, dict)
-            if inner.get("type") in NOT_VISUAL or inner.get("type") == "stepper":
-                raise SpecError("%s.block.type: a step may hold one visual block, not %s" % (sp, inner.get("type")))
+            kind = need(inner, "type", sp + ".block")
+            if kind in NOT_VISUAL or kind == "stepper":
+                raise SpecError("%s.block.type: a step may hold one visual block, not %s" % (sp, kind))
             body += render_block(inner, sp + ".block")
         out.append('<li class="step"><h4><span class="num">%d</span>%s</h4>%s</li>' % (
             n + 1, inline(capped(s, "title", sp, "step_title")), body))
@@ -500,16 +501,21 @@ def r_check(b, p):
             '<div class="answer">%s</div></details>') % (inline(capped(b, "question", p, "question")), paras(need(b, "answer", p)))
 
 
-def r_details(b, p):
-    inner = ""
-    if b.get("text") is not None:
-        inner += paras(need(b, "text", p))
-    if b.get("items") is not None:
-        inner += "<ul class=\"list\">%s</ul>" % "".join(
-            "<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n))) for n, it in enumerate(need(b, "items", p, list)))
-    if not inner:
+def note_body(e, p):
+    """The body of a collapsed note (a details block or a reference entry): paragraphs, a bullet list, or both."""
+    if not isinstance(e, dict):
+        raise SpecError("%s: expected an object" % p)
+    body = paras(need(e, "text", p)) if e.get("text") is not None else ""
+    if e.get("items") is not None:
+        body += '<ul class="list">%s</ul>' % "".join(
+            "<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (p, n))) for n, it in enumerate(need(e, "items", p, list)))
+    if not body:
         raise SpecError("%s: needs text or items" % p)
-    return '<details class="more"><summary>%s</summary>%s</details>' % (inline(capped(b, "summary", p, "summary")), inner)
+    return body
+
+
+def r_details(b, p):
+    return '<details class="more"><summary>%s</summary>%s</details>' % (inline(capped(b, "summary", p, "summary")), note_body(b, p))
 
 
 def r_glossary(b, p):
@@ -733,7 +739,7 @@ def r_gist(g, p):
                 inline(capped(a, "why_not", ap, "why_not"))))
         return ('<div class="verdict"><div class="win"><span class="win-ic">%s</span><div><p class="win-name">%s%s</p>'
                 '<p class="win-why">%s</p></div></div><ul class="alts">%s</ul></div>') % (
-            icon("check", wp), sr("Chosen:"), inline(capped(w, "name", wp, "winner_name")),
+            icon("check", wp), sr("Chosen: "), inline(capped(w, "name", wp, "winner_name")),
             inline(capped(w, "reason", wp, "winner_reason")), "".join(alts))
     if kind == "status":
         lis = []
@@ -766,7 +772,8 @@ def first_read_words(obj):
         if obj.get("type") == "details":
             return spec_words(obj.get("summary"))
         if obj.get("type") == "list":
-            return spec_words((obj.get("items") or [])[:VISIBLE_ITEMS])
+            items = obj.get("items")
+            return spec_words(items[:VISIBLE_ITEMS] if isinstance(items, list) else items)
         return sum(first_read_words(v) if isinstance(v, (dict, list)) else spec_words(v) for k, v in obj.items()
                    if k not in NOT_TEXT + ("answer", "also_worth_knowing", "sources", "reference"))
     if isinstance(obj, list):
@@ -814,15 +821,54 @@ def r_reference(entries):
     out = []
     for n, e in enumerate(entries):
         ep = "spec.reference[%d]" % n
-        body = paras(need(e, "text", ep)) if e.get("text") is not None else ""
-        if e.get("items") is not None:
-            body += '<ul class="list">%s</ul>' % "".join(
-                "<li>%s</li>" % inline(text_at(it, "%s.items[%d]" % (ep, k))) for k, it in enumerate(need(e, "items", ep, list)))
-        if not body:
-            raise SpecError("%s: needs text or items" % ep)
+        body = note_body(e, ep)
         out.append('<div class="ref"><h3>%s</h3>%s</div>' % (inline(need(e, "title", ep)), body))
     return ('<details class="drawer"><summary>Full detail <span class="count">%d</span></summary>%s</details>'
             % (len(out), "".join(out)))
+
+
+def r_also(spec):
+    if not spec.get("also_worth_knowing"):
+        return ""
+    items = need(spec, "also_worth_knowing", "spec", list)
+    lis = "".join("<li>%s</li>" % inline(text_at(t, "spec.also_worth_knowing[%d]" % n, LIMITS["also"])) for n, t in enumerate(items))
+    return '<details class="more also"><summary>Also worth knowing <span class="count">%d</span></summary><ul class="list">%s</ul></details>' % (len(items), lis)
+
+
+def r_sources(spec):
+    if not spec.get("sources"):
+        return ""
+    lis = []
+    for n, s in enumerate(need(spec, "sources", "spec", list)):
+        sp = "spec.sources[%d]" % n
+        label = need(s, "label", sp)
+        if s.get("url") is not None:
+            lis.append('<li><a href="%s" rel="noopener noreferrer">%s</a></li>' % (esc(check_url(need(s, "url", sp), sp + ".url")), inline(label)))
+        else:
+            lis.append("<li>%s</li>" % inline(label))
+    return '<section class="sources" aria-label="Sources"><h2>Sources</h2><ul class="list">%s</ul></section>' % "".join(lis)
+
+
+def r_next(spec):
+    nxt = need(spec, "next_action", "spec", dict)
+    detail = capped(nxt, "detail", "spec.next_action", "next_detail", optional=True)
+    return ('<aside class="next" aria-label="Next action"><p class="next-h">Next action</p>'
+            '<p class="next-text">%s</p>%s</aside>') % (inline(capped(nxt, "text", "spec.next_action", "next_text")),
+                                                        paras(detail) if detail else "")
+
+
+def check_title(spec):
+    title = need(spec, "title", "spec")
+    if not 2 <= len(title.split()) <= 4:
+        raise SpecError("spec.title: use a name of two to four words (got %d)" % len(title.split()))
+    return title
+
+
+def check_page_type(spec):
+    ptype = need(spec, "page_type", "spec")
+    if ptype not in PAGE_TYPES:
+        raise SpecError("spec.page_type: expected one of %s" % ", ".join(PAGE_TYPES))
+    return ptype
 
 
 def build(spec):
@@ -839,20 +885,18 @@ def build(spec):
 
     if not isinstance(spec, dict):
         raise SpecError("spec: expected a JSON object")
-    title = need(spec, "title", "spec")
-    if not 2 <= len(title.split()) <= 4:
-        raise SpecError("spec.title: use a name of two to four words (got %d)" % len(title.split()))
-    ptype = need(spec, "page_type", "spec")
-    if ptype not in PAGE_TYPES:
-        raise SpecError("spec.page_type: expected one of %s" % ", ".join(PAGE_TYPES))
+    title = attempt(check_title, spec)
+    ptype = attempt(check_page_type, spec)
     bottom = attempt(capped, spec, "bottom_line", "spec", "bottom_line")
     gist = attempt(lambda: r_gist(need(spec, "gist", "spec", dict), "spec.gist"))
-    nxt = need(spec, "next_action", "spec", dict)
-    sections = sized(spec, "sections", "spec", 1, MAX_SECTIONS)
+    sections = attempt(sized, spec, "sections", "spec", 1, MAX_SECTIONS) or []
 
     route, secs = [], []
     for n, s in enumerate(sections):
         sp = "spec.sections[%d]" % n
+        if not isinstance(s, dict):
+            errors.append("%s: expected an object" % sp)
+            continue
         heading = attempt(capped, s, "heading", sp, "heading")
         short = attempt(capped, s, "short", sp, "short")
         if len(short) > SHORT_CHARS:
@@ -864,33 +908,13 @@ def build(spec):
         secs.append('<section id="%s" class="stop" aria-labelledby="%s-h"><h2 id="%s-h"><span class="dot">%d</span><span>%s</span></h2>%s</section>'
                     % (sid, sid, sid, n + 1, inline(heading), body))
 
+    reference = attempt(lambda: r_reference(need(spec, "reference", "spec", list))) if spec.get("reference") else ""
+    also = attempt(r_also, spec)
+    sources = attempt(r_sources, spec)
+    next_card = attempt(r_next, spec)
+
     if errors:
         raise SpecError("\n".join(errors))
-
-    reference = r_reference(need(spec, "reference", "spec", list)) if spec.get("reference") else ""
-
-    also = ""
-    if spec.get("also_worth_knowing"):
-        items = need(spec, "also_worth_knowing", "spec", list)
-        lis = "".join("<li>%s</li>" % inline(text_at(t, "spec.also_worth_knowing[%d]" % n, LIMITS["also"])) for n, t in enumerate(items))
-        also = '<details class="more also"><summary>Also worth knowing <span class="count">%d</span></summary><ul class="list">%s</ul></details>' % (len(items), lis)
-
-    sources = ""
-    if spec.get("sources"):
-        lis = []
-        for n, s in enumerate(need(spec, "sources", "spec", list)):
-            sp = "spec.sources[%d]" % n
-            label = need(s, "label", sp)
-            if s.get("url") is not None:
-                lis.append('<li><a href="%s" rel="noopener noreferrer">%s</a></li>' % (esc(check_url(need(s, "url", sp), sp + ".url")), inline(label)))
-            else:
-                lis.append("<li>%s</li>" % inline(label))
-        sources = '<section class="sources" aria-label="Sources"><h2>Sources</h2><ul class="list">%s</ul></section>' % "".join(lis)
-
-    detail = capped(nxt, "detail", "spec.next_action", "next_detail", optional=True)
-    next_card = ('<aside class="next" aria-label="Next action"><p class="next-h">Next action</p>'
-                 '<p class="next-text">%s</p>%s</aside>') % (inline(capped(nxt, "text", "spec.next_action", "next_text")),
-                                                             paras(detail) if detail else "")
 
     minutes = max(1, int(math.ceil(first_read_words(spec) / float(WORDS_PER_MINUTE))))
     lead, shows = STOP_LINE[ptype]
@@ -1115,6 +1139,8 @@ def selftest():
     rejects(lambda s: blk(s, 0, 0).update(type="video"), "spec.sections[0].blocks[0].type")
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=True), "spec.sections[2].blocks[0].items[0].value")
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=-1), "spec.sections[2].blocks[0].items")
+    rejects(lambda s: blk(s, 0, 2).update(items=1), "spec.sections[0].blocks[2].items")
+    rejects(lambda s: blk(s, 1, 0)["steps"][1]["block"].update(type=[]), "steps[1].block.type")
     rejects(lambda s: blk(s, 2, 1).update(min=5, max=5), "spec.sections[2].blocks[1]")
     rejects(lambda s: blk(s, 2, 1).update(min=float("-inf")), "spec.sections[2].blocks[1].min")
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=10 ** 400), "spec.sections[2].blocks[0].items[0].value")
@@ -1205,6 +1231,16 @@ def selftest():
         raise AssertionError("two bad fields were accepted")
     except SpecError as exc:
         assert "spec.bottom_line" in str(exc) and "spec.sections[0].heading" in str(exc), str(exc)
+    # Fields checked after the sections are reported in the same run, and a bad reference entry is a spec error.
+    late = json.loads(json.dumps(SAMPLE))
+    late["bottom_line"] = long_(LIMITS["bottom_line"])
+    late["next_action"]["text"] = long_(LIMITS["next_text"])
+    late["reference"].append("not an object")
+    try:
+        build(late)
+        raise AssertionError("bad late fields were accepted")
+    except SpecError as exc:
+        assert all(f in str(exc) for f in ("spec.bottom_line", "spec.next_action.text", "spec.reference[2]")), str(exc)
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(title=long_(LIMITS["card_title"])), "spec.sections[3].blocks[1].cards[0].title")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(text=long_(LIMITS["card_text"])), "spec.sections[3].blocks[1].cards[0].text")
     rejects(lambda s: blk(s, 3, 1)["cards"][0].update(state="great"), "spec.sections[3].blocks[1].cards[0].state")

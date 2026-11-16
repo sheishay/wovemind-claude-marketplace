@@ -30,7 +30,7 @@ The gist is the first thing the reader sees, so it should state the whole idea a
 |---|---|---|
 | `chain` | `nodes`: 2 to 4 of `{ "icon", "label", "arrow", "outcome" }` | A cause and its effect, or a short strip of steps. `label` is 4 words at most. `arrow` (3 words at most) labels the arrow leading into that node, so the first node has none. Mark at most one node `"outcome": true`; it is drawn filled. Left to right on wide screens, top to bottom on narrow ones. |
 | `verdict` | `winner`: `{ "name", "reason" }`, `alternatives`: 1 to 3 of `{ "name", "why_not" }` | Research and option pages. `name` is 4 words at most, `reason` 6, `why_not` 5. |
-| `status` | `tallies`: 2 to 4 of `{ "count", "label", "state" }` | Work summaries. `count` is a whole number from 0 to 9,999, `label` 3 words at most, `state` one of `done`, `open`, `blocked`, `info`. Drawn as large numerals, each with a state icon. |
+| `status` | `tallies`: 2 to 4 of `{ "count", "label", "state" }` | Work summaries. `count` is a whole number from 0 to 9,999, `label` 3 words at most, `state` one of `done`, `open`, `warn` (needs a decision), `blocked`, `info`. Drawn as large numerals, each with a state icon. |
 
 ## Sections
 

@@ -13,10 +13,9 @@ For explaining how something works or what it means.
 **Gist:** `chain`, from the cause to the outcome, with the outcome node marked. For a diagnosis, the chain is the causal path that produces the symptom.
 
 1. **The idea in one example.** One concrete case the reader can picture, then the general idea. A `chain` for the life cycle of the thing, a `before_after` for a single change, a `glossary` if the page relies on three or more unfamiliar terms.
-2. **How it works.** The mechanism: `chain` when it runs in a line, `stepper` when the reader should step through it, `flow` or bespoke `svg` when it branches.
-3. **One `check` prompt** right after the mechanism, testing the part most likely to be misunderstood.
-4. **The numbers that matter**, as `stats` (a threshold, a count, a duration) or `icon_array` (a share).
-5. **Where it matters or what to do.** `cards` for alternatives with their pros and cons, `table` for options across the same criteria, `stepper` for ordered fixes.
+2. **How it works.** The mechanism: `chain` when it runs in a line, `stepper` when the reader should step through it, `flow` or bespoke `svg` when it branches. End this stop with one `check` prompt testing the part most likely to be misunderstood; a check is not a visual, so it never makes a stop of its own.
+3. **The numbers that matter**, as `stats` (a threshold, a count, a duration) or `icon_array` (a share).
+4. **Where it matters or what to do.** `cards` for alternatives with their pros and cons, `table` for options across the same criteria, `stepper` for ordered fixes.
 
 Limits and edge cases go into `reference`. Use one or two `check` prompts in total; more turns the page into a quiz.
 
@@ -37,7 +36,7 @@ Evidence detail per option, method, licences and options ruled out go into `refe
 
 For reporting what was done, what changed and what is left.
 
-**Gist:** `status`, with tallies such as done, still open, needing a decision and blocking.
+**Gist:** `status`, with tallies such as done, still open, needing a decision (`warn`) and blocking.
 
 1. **What works now.** The concrete result the reader can see or try. A `chain` for a new flow, `stats` for a number that describes it.
 2. **What changed and why.** `cards` with `"state": "done"` per change, `before_after` for one important behaviour change, `icon_array` for a share that justified a decision, `timeline` when the order of events matters.
