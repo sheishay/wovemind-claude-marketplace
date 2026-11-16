@@ -1,0 +1,187 @@
+<title>{{TITLE}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one calm reading column about 60 characters wide; bottom line first, visuals inside the column, next action last. */
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
+  --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#ffffff;
+  --before:#6b625a; --before-soft:#f0ece7;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
+  --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
+  --before:#c3b6aa; --before-soft:#2a2521; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
+  --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
+  --before:#c3b6aa; --before-soft:#2a2521; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px;
+  -webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+.page{max-width:60ch;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+.page>*{min-width:0}
+p{margin:0}
+p+p{margin-top:.8em}
+a{color:var(--accent);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+code{font:.88em var(--font-mono);background:var(--accent-soft);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
+strong{font-weight:650}
+h1{font-size:clamp(30px,6vw,40px);line-height:1.12;letter-spacing:-.015em;margin:8px 0 24px;text-wrap:balance;font-weight:700}
+h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0 0 18px;text-wrap:balance;font-weight:680;scroll-margin-top:24px}
+h4{font-size:17px;line-height:1.35;margin:0 0 6px;font-weight:650;display:flex;gap:10px;align-items:baseline}
+.eyebrow{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+#progress{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;background:var(--accent);transform-origin:0 50%;transform:scaleX(0);z-index:10}
+.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.bottom-line{background:var(--accent-soft);border-radius:14px;padding:20px 22px}
+.bottom-line .eyebrow{color:var(--accent)}
+.bottom-line p{font-size:20px;line-height:1.5;font-weight:560;margin-top:6px;text-wrap:pretty}
+
+.toc ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:toc;font-size:15px}
+.toc li{counter-increment:toc;display:flex;gap:10px}
+.toc li::before{content:counter(toc);color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.2em}
+.toc a{color:var(--fg);text-decoration:none}
+.toc a:hover{color:var(--accent);text-decoration:underline}
+
+section{display:flex;flex-direction:column;gap:22px}
+section>h2{margin-bottom:-4px}
+.block{min-width:0}
+.list{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px}
+.list li::marker{color:var(--muted)}
+.list+.more,.more .list{margin-top:10px}
+
+figure{margin:0;display:flex;flex-direction:column;gap:10px}
+figcaption{font-size:14.5px;color:var(--muted);line-height:1.5}
+.figtitle{font-size:15px;font-weight:650}
+.scroll{overflow-x:auto;max-width:100%}
+.chart{display:block;overflow:visible;font-family:var(--font-body)}
+.chart .lbl{font-size:14px;fill:var(--fg)}
+.chart .val{font-size:13.5px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.chart .tick{font-size:12.5px;fill:var(--muted)}
+.chart .bar{fill:var(--accent)}
+.chart .axis{stroke:var(--line);stroke-width:1}
+.chart .track{stroke:var(--line);stroke-width:2}
+.chart .dot{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.flow{display:block;width:100%;height:auto;margin:0 auto;font-family:var(--font-body)}
+.flow .node{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.flow .nlbl{font-size:13px;fill:var(--fg)}
+.flow .edge{stroke:var(--muted);stroke-width:1.5}
+.flow .head{fill:var(--muted)}
+.flow .elbl{font-size:12px;fill:var(--muted)}
+.svgslot{color:var(--fg)}
+.svgslot svg{display:block;max-width:100%;height:auto;margin:0 auto}
+
+table{border-collapse:collapse;width:100%;font-size:15px;line-height:1.45;background:var(--surface);border-radius:10px;overflow:hidden}
+.tablefig .scroll{border:1px solid var(--line);border-radius:10px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid var(--line)}
+thead th{border-top:0;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:650;white-space:nowrap}
+tbody th{font-weight:650}
+.hl{background:var(--accent-soft)}
+thead .hl{color:var(--accent)}
+
+.stepper .steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:18px}
+.step{border-left:2px solid var(--line);padding:0 0 0 18px}
+.num{flex:none;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;transform:translateY(-1px)}
+.step .block{margin-top:14px}
+.stepper.js .step{border-left:0;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:12px;min-height:9em}
+.stepper.js .step.off{display:none}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.controls .pos{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;margin-right:auto}
+.controls button{font:600 14.5px var(--font-body);padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;min-height:40px}
+.controls button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.controls button:disabled{opacity:.45;cursor:default}
+
+.timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.timeline li{display:grid;grid-template-columns:minmax(4.5em,auto) 1fr;gap:18px;position:relative;padding-bottom:18px}
+.timeline li:last-child{padding-bottom:0}
+.when{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:2px;text-align:right}
+.what{border-left:2px solid var(--line);padding-left:18px;position:relative;min-width:0}
+.what::before{content:"";position:absolute;left:-7px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.what strong{display:block}
+.what p{color:var(--muted);margin-top:2px}
+
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ba>div{border-radius:12px;padding:16px 18px;min-width:0}
+.ba-before{background:var(--before-soft)}
+.ba-after{background:var(--accent-soft)}
+.ba-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.ba-before .ba-label{color:var(--before)}
+.ba-after .ba-label{color:var(--accent)}
+@media (max-width:520px){.ba{grid-template-columns:1fr}}
+
+details>summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"";flex:none;width:.5em;height:.5em;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg) translate(-1px,-1px);color:var(--muted)}
+details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
+.more>summary{font-size:15px;font-weight:600;color:var(--muted)}
+.more[open]>summary{margin-bottom:10px}
+.check{border:1.5px dashed var(--accent);border-radius:12px;padding:14px 18px}
+.check>summary{font-weight:600;flex-wrap:wrap}
+.check .eyebrow{color:var(--accent);flex-basis:100%;order:-1;margin-left:calc(.5em + 10px)}
+.check .answer{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.also{border-top:1px solid var(--line);padding-top:20px}
+.count{font-size:12.5px;font-weight:650;background:var(--line);color:var(--fg);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}
+
+.glossary{margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.glossary div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14.5px;line-height:1.45;flex:1 1 14em;min-width:0}
+.glossary dt{font-weight:650}
+.glossary dd{margin:0;color:var(--muted)}
+
+.next{border:2px solid var(--accent);border-radius:14px;padding:20px 22px;background:var(--surface)}
+.next .eyebrow{color:var(--accent)}
+.next-text{font-size:19px;font-weight:600;line-height:1.45;margin-top:6px}
+.next p:not(.next-text){color:var(--muted);margin-top:8px;font-size:15.5px}
+.sources h2{font-size:15px;font-weight:650;margin-bottom:8px}
+.sources{font-size:14.5px;color:var(--muted);gap:0}
+
+@media print{
+  #progress,.controls{display:none}
+  .stepper.js .step.off{display:block}
+  body{background:#fff;color:#000}
+}
+</style>
+<div id="progress" aria-hidden="true"></div>
+<main class="page">{{MAIN}}</main>
+<script>
+(function(){
+  var bar=document.getElementById("progress");
+  var ticking=false;
+  function update(){
+    ticking=false;
+    var max=document.documentElement.scrollHeight-window.innerHeight;
+    bar.style.transform="scaleX("+(max>0?Math.min(1,window.scrollY/max):1)+")";
+  }
+  window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
+  window.addEventListener("resize",update);
+  update();
+
+  // Steppers show one step at a time with Back, Next and Start over. Without JavaScript, or when printing, every step stays visible.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-stepper]"),function(root){
+    var steps=root.querySelectorAll(".step");
+    if(steps.length<2)return;
+    var cur=0;
+    var ctl=document.createElement("div");
+    ctl.className="controls";
+    ctl.innerHTML='<span class="pos" aria-live="polite"></span><button type="button" data-a="back">Back</button><button type="button" class="primary" data-a="next">Next</button><button type="button" data-a="replay">Start over</button>';
+    root.appendChild(ctl);
+    root.classList.add("js");
+    var pos=ctl.querySelector(".pos"),back=ctl.querySelector('[data-a="back"]'),next=ctl.querySelector('[data-a="next"]'),replay=ctl.querySelector('[data-a="replay"]');
+    function show(i){
+      cur=i;
+      for(var k=0;k<steps.length;k++)steps[k].classList.toggle("off",k!==cur);
+      pos.textContent="Step "+(cur+1)+" of "+steps.length;
+      back.disabled=cur===0;
+      next.disabled=cur===steps.length-1;
+      replay.disabled=cur===0;
+    }
+    back.addEventListener("click",function(){if(cur>0)show(cur-1);});
+    next.addEventListener("click",function(){if(cur<steps.length-1)show(cur+1);if(next.disabled)replay.focus();});
+    replay.addEventListener("click",function(){show(0);next.focus();});
+    show(0);
+  });
+})();
+</script>
