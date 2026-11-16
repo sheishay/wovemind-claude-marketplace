@@ -200,12 +200,16 @@ export const register: Register = on => {
     if ((await $.store.get(key)) === e.turnId) await $.store.delete(key)
     const s = await load($)
     if (s?.wrapTurnId === e.turnId) {
+      await save($, { ...s, phase: 'stopped', wrapTurnId: undefined, inject: undefined })
       const path = await handoffPath($)
       const root = await $.session.root()
-      await $.fs.write(`${root}/${path}`, r.text)
-      await $.fs.write(`${root}/.claude/handoffs/.gitignore`, '*\n')
-      await save($, { ...s, phase: 'stopped', wrapTurnId: undefined, inject: undefined })
-      $.ui.log(`token-utilization: handoff notes saved to ${path}`)
+      try {
+        await $.fs.write(`${root}/${path}`, r.text)
+        await $.fs.write(`${root}/.claude/handoffs/.gitignore`, '*\n')
+        $.ui.log(`token-utilization: handoff notes saved to ${path}`)
+      } catch (err) {
+        $.ui.log(`token-utilization: handoff notes not saved to ${path}: ${err}`)
+      }
     } else if (s?.phase === 'armed' && !s.warned) {
       const readings = await readingsOf($)
       const missing = s.limits.filter(l => now(readings, l.kind) === undefined)
@@ -244,6 +248,8 @@ export const register: Register = on => {
     }
     if (s.phase !== 'stopped') return next(e)
     if (o.kind === 'task-notification') {
+      // ponytail: reads the id from the notification's text format; if that format changes, these
+      // notifications fall back to the restart question. Use a structured task id if the event gains one.
       const id = /<task-id>([^<]+)<\/task-id>/.exec(e.text)?.[1]
       if (id && s.stoppedIds?.includes(id)) return { drop: 'token-utilization: dropped the notification of a subagent it stopped.' }
       if (id && s.messagedIds?.includes(id)) return next(e)
