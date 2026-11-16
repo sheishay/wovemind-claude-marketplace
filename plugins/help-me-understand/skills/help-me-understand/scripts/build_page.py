@@ -77,7 +77,8 @@ def text_at(val, where):
 
 
 def check_url(url, path):
-    if not re.match(r"https?://[^\s\"'<>]+$", url):
+    # \Z rather than $, which would also accept a trailing newline.
+    if not re.match(r"https?://[^\s\"'<>]+\Z", url):
         raise SpecError("%s: source links must be http:// or https:// URLs" % path)
     return url
 
@@ -216,11 +217,14 @@ def r_bar_chart(b, p):
     for n, (label, v) in enumerate(items):
         y = n * ROW
         w = 82.0 * v / top  # leaves room on the right for the value label
+        # A long bar carries its value inside its end, so a long number cannot run past a narrow screen's edge.
+        inside = w > 60
         rows.append(
             '<text class="lbl" x="0" y="%d">%s</text>'
             '<rect class="bar" x="0" y="%d" width="%.2f%%" height="14" rx="2"></rect>'
-            '<text class="val" x="%.2f%%" y="%d" dx="6">%s</text>'
-            % (y + 14, esc(label), y + 22, w, w, y + 34, esc(fmt(v) + unit)))
+            '<text class="val%s" x="%.2f%%" y="%d" dx="%d"%s>%s</text>'
+            % (y + 14, esc(label), y + 22, w, " in" if inside else "", w, y + 34, -6 if inside else 6,
+               ' text-anchor="end"' if inside else "", esc(fmt(v) + unit)))
     h = len(items) * ROW
     svg = ('<svg class="chart" width="100%%" height="%d" role="img" aria-label="%s">%s'
            '<line class="axis" x1="0" y1="18" x2="0" y2="%d"></line></svg>') % (
@@ -343,8 +347,9 @@ def r_flow(b, p):
                          % (x + NODE_W / 2.0, y0 + 10 + LINE_H * (k + 1) - 3, esc(line)))
     defs = ('<defs><marker id="%s-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" '
             'orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head"></path></marker></defs>' % b["_id"])
+    # A wide flow shrinks to at most three quarters of its size, so labels stay readable, and scrolls sideways past that.
     svg = ('<div class="scroll"><svg class="flow" viewBox="0 0 %d %d" style="max-width:%dpx;min-width:%dpx" role="img" aria-label="%s">%s%s</svg></div>'
-           % (width, height, width, min(width, 320), esc(b.get("title") or "Flow diagram"), defs, "".join(parts)))
+           % (width, height, width, width * 3 // 4, esc(b.get("title") or "Flow diagram"), defs, "".join(parts)))
     return figure(title_html(b) + svg, b.get("caption"), "flowfig")
 
 
@@ -717,6 +722,8 @@ def selftest():
     for needle in ("min read", "Bottom line", "On this page", "Also worth knowing", "Next action", 'id="progress"', "<code>GET /users</code>", "2 more"):
         assert needle in html, "missing %r" % needle
     assert "xmlns" not in html
+    # The longest bar holds its value inside; a wide flow keeps at least three quarters of its size.
+    assert 'class="val in"' in html and "min-width:138px" in html
     assert fmt(8000000) == "8,000,000" and fmt(2) == "2" and fmt(1234.5) == "1,234.5"
     assert fmt(0.004) == "0.004" and fmt(-0.001) == "-0.001" and fmt(0.123) == "0.12"
     assert inline("`a**b**c` **d**") == "<code>a**b**c</code> <strong>d</strong>"
@@ -760,6 +767,10 @@ def selftest():
     rejects(lambda s: blk(s, 1, 1)["edges"].append({"from": "app", "to": "nowhere"}), "spec.sections[1].blocks[1].edges[4].to")
     rejects(lambda s: blk(s, 2, 2)["rows"].append(["only one"]), "spec.sections[2].blocks[2].rows[2]")
     rejects(lambda s: s["sources"][0].update(url="javascript:alert(1)"), "spec.sources[0].url")
+    rejects(lambda s: s["sources"][0].update(url="https://example.org/a\n"), "spec.sources[0].url")
+    rejects(lambda s: s.update(title="One two three four five"), "spec.title")
+    rejects(lambda s: blk(s, 2, 2)["rows"][0].__setitem__(1, "word " * (CELL_WORDS + 1)), "spec.sections[2].blocks[2].rows[0][1]")
+    rejects(lambda s: blk(s, 1, 1)["nodes"].append({"id": "app", "label": "Again"}), "spec.sections[1].blocks[1].nodes[4].id")
     rejects(lambda s: blk(s, 2, 0).update(caption=5), "spec.sections[2].blocks[0].caption")
     rejects(lambda s: blk(s, 1, 2)["items"].append("not an object"), "spec.sections[1].blocks[2].items[2]")
     rejects(lambda s: blk(s, 1, 0)["steps"][1]["block"]["before"].update(label=3), "spec.sections[1].blocks[0].steps[1].block.before.label")
@@ -778,6 +789,7 @@ def selftest():
         "<svg><text><img onerror=alert(1) src=\"x></text></svg>",
         "<svg style=\"background-image:image-set('//evil.example/a.png' 1x)\"></svg>",
         "<svg><rect fill=\"u\\72l(//evil.example/a)\"/></svg>",
+        "<svg><text>a < b</text></svg>",
     ]
     for bad in bad_svgs:
         rejects(lambda s, bad=bad: blk(s, 2, 4).update(svg=bad), "spec.sections[2].blocks[4].svg")
