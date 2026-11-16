@@ -3,7 +3,7 @@
 <style>
 /* Layout: a wide opening picture with the bottom line under it, a route of numbered stops, then the stops, each on its own sheet. Running text keeps to about 65 characters per line (48ch); tables, cards, chains, charts and other visuals use the full page width. */
 :root{
-  --bg:#f5f6f3; --surface:#ffffff; --sheet:#ffffff; --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
+  --bg:#f5f6f3; --surface:#ffffff; --sheet:var(--surface); --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
   --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#ffffff;
   --before:#6b625a; --before-soft:#f0ece7;
   --good:#17684f; --bad:#b3372d; --warn:#875800; --info:#2d5c9a;
@@ -12,12 +12,12 @@
   --gap:clamp(64px,10vw,104px);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#121614; --surface:#1a201d; --sheet:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
+  --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
   --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
   --before:#c3b6aa; --before-soft:#2a2521;
   --good:#72cfb0; --bad:#f2928a; --warn:#e3b55c; --info:#93b8ee; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#121614; --surface:#1a201d; --sheet:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
+  --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
   --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
   --before:#c3b6aa; --before-soft:#2a2521;
   --good:#72cfb0; --bad:#f2928a; --warn:#e3b55c; --info:#93b8ee; color-scheme:dark}
@@ -29,7 +29,7 @@ body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin
 .page{max-width:50rem;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap);overflow-wrap:break-word}
 .page>*{width:100%;min-width:0}
 /* Line length matters for prose, not for pictures, so only text-bearing parts are held to the reading measure. */
-.b-text,.b-list,.b-stepper,.b-timeline,.b-check,.b-details,figcaption,.drawer,.also,.next,.sources{max-width:48ch}
+.b-text,.b-list,.step>p,.b-timeline,.b-check,.b-details,figcaption,.ref,.also>.list,.next,.sources{max-width:48ch}
 p{margin:0}
 :where(.b-text,.answer,.more,.ref,.step,.what,.next,.ba>div) p+p{margin-top:.8em}
 a{color:var(--accent);text-underline-offset:3px}
@@ -37,7 +37,7 @@ a{color:var(--accent);text-underline-offset:3px}
 code{font:.88em var(--font-mono);background:var(--accent-soft);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
 strong{font-weight:650}
 h1{font-size:clamp(30px,5.5vw,42px);line-height:1.1;letter-spacing:-.018em;margin:0;text-wrap:balance;font-weight:720}
-h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0;text-wrap:balance;font-weight:680;scroll-margin-top:24px}
+h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0;text-wrap:balance;font-weight:680}
 h3,h4{font-size:17px;line-height:1.35;margin:0;font-weight:650}
 h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
@@ -140,9 +140,10 @@ h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
 
 section{display:flex;flex-direction:column;gap:24px}
 /* Each stop is its own sheet with a tinted header band, so the page reads as a few distinct parts. A short line joins one sheet to the next, like the line in the route above. */
-.stop{--pad:clamp(18px,4vw,34px);--surface:var(--bg);position:relative;background:var(--sheet);border:1px solid var(--line);border-radius:20px;padding:var(--pad)}
-.stop>h2{display:flex;gap:14px;align-items:flex-start;max-width:none;margin:calc(-1*var(--pad)) calc(-1*var(--pad)) 4px;padding:18px var(--pad);background:var(--accent-soft);border-radius:19px 19px 0 0}
+.stop{--pad:clamp(18px,4vw,34px);--surface:var(--bg);position:relative;background:var(--sheet);border:1px solid var(--line);border-radius:20px;padding:var(--pad);scroll-margin-top:24px}
+.stop>h2{display:flex;gap:14px;align-items:flex-start;margin:calc(-1*var(--pad)) calc(-1*var(--pad)) 4px;padding:18px var(--pad);background:var(--accent-soft);border-radius:19px 19px 0 0}
 .stop>h2 .dot{margin-top:-1px;background:var(--accent);color:var(--accent-fg)}
+.stop>h2 code{background:var(--sheet)}
 .stop .chart .dot{stroke:var(--sheet)}
 .stop .what::before{background:var(--sheet)}
 .stop+.stop{margin-top:calc(var(--join) - var(--gap));--join:32px}
@@ -291,9 +292,12 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
   /* Printing shows collapsed content too, so the paper copy is complete. */
   ::details-content{content-visibility:visible;display:block}
   .hero{break-inside:avoid}
+  /* Browsers drop backgrounds when printing by default, which would leave the filled heading number white on white. */
+  .stop>h2{break-after:avoid}
+  .stop>h2 .dot{background:none;color:var(--accent)}
   /* Paper is white, so print with the light tokens even when the reader's screen is in dark mode. */
   :root:not([data-theme="light"]),:root[data-theme]{
-    --bg:#fff; --surface:#fff; --sheet:#fff; --fg:#000; --muted:#56605b; --line:#d9ded8;
+    --bg:#fff; --surface:#fff; --fg:#000; --muted:#56605b; --line:#d9ded8;
     --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#fff;
     --before:#6b625a; --before-soft:#f0ece7;
     --good:#17684f; --bad:#b3372d; --warn:#875800; --info:#2d5c9a; color-scheme:light}

@@ -2,7 +2,7 @@
 
 Every page opens with the title, the gist picture and the bottom line in one panel, then a line saying the reader may stop there, then the route of numbered stops. It ends with the "Full detail" drawer (when there is reference material), "Also worth knowing" (when there are tangents), the next action and the sources. The script adds all of those. What changes between types is the gist kind and the order and kind of stops in between, because readers look for different things first.
 
-Each stop leads with a visual and keeps prose to a sentence or two around it. Detail that does not fit a stop goes into the top-level `reference` list, never into a final stop made of collapsed blocks.
+Each stop is drawn as its own sheet, leads with a visual that uses the full page width, and keeps prose to a sentence or two around it. Detail that does not fit a stop goes into the top-level `reference` list, never into a final stop made of collapsed blocks.
 
 Section headings below are patterns. Write each real heading as the idea it states, in the source's own words.
 

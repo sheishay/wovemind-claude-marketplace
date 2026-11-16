@@ -47,7 +47,7 @@ You get a link to the page, its bottom line in one sentence and one next action.
 - The title, then one panel with the gist picture and the bottom line (25 words at most). The gist is a chain from cause to outcome, a verdict of the winner against the alternatives, or a status of tallies with state icons.
 - One quiet line saying the reader may stop there, with the number of stops and the reading time (about 200 words per minute, counting only what shows without opening a collapsed block).
 - A route of up to five numbered stops that marks the stop in view, and a scroll progress bar.
-- Stops that each lead with a visual and keep prose to 60 words: big figures, icon arrays for proportions, chains, cards with pros and cons or states, numbered stepper (Back, Next, Start over), comparison table, bar chart, dot chart, flow diagram, timeline, before and after pair, "Check yourself" click-to-reveal prompts (concept pages only), glossary strip, and a slot for a bespoke SVG diagram. Icons come from a closed built-in set and always sit next to a text label.
+- Stops, each drawn as its own sheet, that lead with a visual and keep prose to 60 words: big figures, icon arrays for proportions, chains, cards with pros and cons or states, numbered stepper (Back, Next, Start over), comparison table, bar chart, dot chart, flow diagram, timeline, before and after pair, "Check yourself" click-to-reveal prompts (concept pages only), glossary strip, and a slot for a bespoke SVG diagram. Icons come from a closed built-in set and always sit next to a text label.
 - One collapsed "Full detail" drawer for reference material, then "Also worth knowing", a collapsed block for tangents.
 - One "Next action" card and the sources.
 

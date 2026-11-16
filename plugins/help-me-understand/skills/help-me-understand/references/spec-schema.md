@@ -34,7 +34,7 @@ The gist is the first thing the reader sees, so it should state the whole idea a
 
 ## Sections
 
-Each section is a "stop" with a number. The script rejects a section that breaks any of these:
+Each section is a "stop" with a number, drawn as its own sheet with the heading and number in a tinted band at the top. Visual blocks use the full page width, while text blocks, lists and other reading text keep to about 65 characters per line. The script rejects a section that breaks any of these:
 
 - `heading`: 9 words at most. Write the idea it states, not a topic label.
 - `short`: the label under the stop's dot in the route strip, 3 words and 24 characters at most.
