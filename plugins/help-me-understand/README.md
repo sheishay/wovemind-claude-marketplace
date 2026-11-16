@@ -35,7 +35,7 @@ You get a link to the page, its bottom line in one sentence and one next action.
 
 ## How it works
 
-1. **Find the source.** A Haiku subagent extracts the text of a file or URL.
+1. **Find the source.** Claude reads a file itself; a Haiku subagent extracts the text of a URL.
 2. **Pick a page type:** concept, research, work summary or how-to. Each has its own section order (see `skills/help-me-understand/references/page-types.md`).
 3. **Write a page spec.** The session model lists every point in the source, maps each to a section, and chooses a visual by the shape of the content.
 4. **Render.** `scripts/build_page.py` turns the spec into one self-contained HTML file from the bundled template. It costs no tokens and takes well under a second.

@@ -30,7 +30,9 @@ WORDS_PER_MINUTE = 200
 BOTTOM_LINE_WORDS = 35
 CELL_WORDS = 14
 VISIBLE_ITEMS = 4
-PAGE_TYPES = ("concept", "research", "work-summary", "how-to")
+PAGE_TYPES = {"concept": "Concept", "research": "Research", "work-summary": "Work summary", "how-to": "How-to"}
+# Keys whose values are never shown as reading text.
+NOT_TEXT = ("type", "id", "from", "to", "url", "svg", "page_type")
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
 
@@ -51,7 +53,8 @@ def need(obj, key, path, kind=str, optional=False):
         raise SpecError("%s: missing" % where)
     val = obj[key]
     if kind is float:
-        if isinstance(val, bool) or not isinstance(val, (int, float)) or not math.isfinite(val):
+        # The bound check also rejects NaN, infinity and integers too large for a float.
+        if isinstance(val, bool) or not isinstance(val, (int, float)) or not abs(val) <= sys.float_info.max:
             raise SpecError("%s: expected a number" % where)
     elif kind is list:
         if not isinstance(val, list) or not val:
@@ -60,10 +63,7 @@ def need(obj, key, path, kind=str, optional=False):
         if not isinstance(val, dict):
             raise SpecError("%s: expected an object" % where)
     elif kind is str:
-        if not isinstance(val, str) or not val.strip():
-            raise SpecError("%s: expected non-empty text" % where)
-        if "{{" in val or "}}" in val:
-            raise SpecError("%s: text may not contain '{{' or '}}'" % where)
+        text_at(val, where)
     return val
 
 
@@ -90,10 +90,10 @@ def esc(text):
 
 def inline(text):
     """Escape text, then allow `code` and **bold** as the only inline markup."""
-    out = esc(text)
-    out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
-    out = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", out)
-    return out
+    # Odd parts are code spans, which stay literal so ** inside code is not turned bold.
+    parts = re.split(r"`([^`]+)`", esc(text))
+    return "".join("<code>%s</code>" % s if i % 2 else re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
+                   for i, s in enumerate(parts))
 
 
 def paras(text):
@@ -101,9 +101,9 @@ def paras(text):
 
 
 def wrap(text, width):
-    """Greedy word wrap for SVG labels."""
+    """Greedy word wrap for SVG labels; a word longer than width is split so it stays inside the box."""
     lines, cur = [], ""
-    for word in text.split():
+    for word in (w[i:i + width] for w in text.split() for i in range(0, len(w), width)):
         if cur and len(cur) + 1 + len(word) > width:
             lines.append(cur)
             cur = word
@@ -116,7 +116,11 @@ def wrap(text, width):
 
 def fmt(n):
     """Format a chart value with thousands separators, so 8000000 reads as 8,000,000."""
-    return "{:,d}".format(int(n)) if float(n).is_integer() else "{:,.2f}".format(n).rstrip("0").rstrip(".")
+    if float(n).is_integer():
+        return "{:,d}".format(int(n))
+    # Two significant digits below 1, so 0.004 does not round to 0.
+    places = max(2, 1 - int(math.floor(math.log10(abs(n)))))
+    return "{:,.{}f}".format(n, places).rstrip("0").rstrip(".")
 
 
 def figure(inner, caption, cls):
@@ -226,11 +230,9 @@ def r_bar_chart(b, p):
 
 def r_dot_chart(b, p):
     items = chart_items(b, p)
-    lo = b.get("min", min(v for _, v in items))
-    hi = b.get("max", max(v for _, v in items))
-    for key, val in (("min", lo), ("max", hi)):
-        if isinstance(val, bool) or not isinstance(val, (int, float)):
-            raise SpecError("%s.%s: expected a number" % (p, key))
+    lo, hi = need(b, "min", p, float, optional=True), need(b, "max", p, float, optional=True)
+    lo = min(v for _, v in items) if lo is None else lo
+    hi = max(v for _, v in items) if hi is None else hi
     if hi <= lo:
         raise SpecError("%s: max must be greater than min (set min and max when all values are equal)" % p)
     if any(v < lo or v > hi for _, v in items):
@@ -503,7 +505,7 @@ def spec_words(obj):
     if isinstance(obj, list):
         return sum(spec_words(x) for x in obj)
     if isinstance(obj, dict):
-        return sum(spec_words(v) for k, v in obj.items() if k not in ("type", "id", "from", "to", "url", "svg", "page_type"))
+        return sum(spec_words(v) for k, v in obj.items() if k not in NOT_TEXT)
     return 0
 
 
@@ -515,7 +517,7 @@ def first_read_words(obj):
         if obj.get("type") == "list":
             return spec_words((obj.get("items") or [])[:VISIBLE_ITEMS])
         return sum(first_read_words(v) if isinstance(v, (dict, list)) else spec_words(v) for k, v in obj.items()
-                   if k not in ("type", "id", "from", "to", "url", "svg", "page_type", "answer", "also_worth_knowing", "sources"))
+                   if k not in NOT_TEXT + ("answer", "also_worth_knowing", "sources"))
     if isinstance(obj, list):
         return sum(first_read_words(x) for x in obj)
     return spec_words(obj)
@@ -571,7 +573,7 @@ def build(spec):
                  '<p class="next-text">%s</p>%s</aside>') % (inline(need(nxt, "text", "spec.next_action")), detail)
 
     minutes = max(1, int(math.ceil(first_read_words(spec) / float(WORDS_PER_MINUTE))))
-    kind_label = {"concept": "Concept", "research": "Research", "work-summary": "Work summary", "how-to": "How-to"}[ptype]
+    kind_label = PAGE_TYPES[ptype]
     header = ('<header class="top"><div class="meta"><span>%s</span><span aria-hidden="true">&middot;</span><span>%d min read</span></div>'
               '<h1>%s</h1><div class="bottom-line" role="note"><div class="eyebrow">Bottom line</div><p>%s</p></div></header>'
               % (kind_label, minutes, inline(title), inline(bottom)))
@@ -709,6 +711,9 @@ def selftest():
         assert needle in html, "missing %r" % needle
     assert "xmlns" not in html
     assert fmt(8000000) == "8,000,000" and fmt(2) == "2" and fmt(1234.5) == "1,234.5"
+    assert fmt(0.004) == "0.004" and fmt(-0.001) == "-0.001" and fmt(0.123) == "0.12"
+    assert inline("`a**b**c` **d**") == "<code>a**b**c</code> <strong>d</strong>"
+    assert wrap("x" * 25, 20) == ["x" * 20, "x" * 5]
     # Collapsed text (details, check answers, list items past the visible ones, tangents) is not part of the first read.
     assert 0 < first_read_words(SAMPLE) < spec_words(SAMPLE)
     assert first_read_words({"type": "list", "items": ["a b"] * (VISIBLE_ITEMS + 3)}) == 2 * VISIBLE_ITEMS
@@ -742,6 +747,8 @@ def selftest():
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=True), "spec.sections[2].blocks[0].items[0].value")
     rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=-1), "spec.sections[2].blocks[0].items")
     rejects(lambda s: blk(s, 2, 1).update(min=5, max=5), "spec.sections[2].blocks[1]")
+    rejects(lambda s: blk(s, 2, 1).update(min=float("-inf")), "spec.sections[2].blocks[1].min")
+    rejects(lambda s: blk(s, 2, 0)["items"][0].update(value=10 ** 400), "spec.sections[2].blocks[0].items[0].value")
     rejects(lambda s: blk(s, 1, 1)["edges"].append({"from": "out", "to": "app"}), "spec.sections[1].blocks[1].edges")
     rejects(lambda s: blk(s, 1, 1)["edges"].append({"from": "app", "to": "nowhere"}), "spec.sections[1].blocks[1].edges[4].to")
     rejects(lambda s: blk(s, 2, 2)["rows"].append(["only one"]), "spec.sections[2].blocks[2].rows[2]")

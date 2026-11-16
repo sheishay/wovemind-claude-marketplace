@@ -2,7 +2,7 @@
 
 The page spec is one JSON file. `scripts/build_page.py <spec.json> <out.html>` validates it, renders the page, and prints the page's visible text to stdout. If the spec is invalid, the script exits with status 1 and names the bad field, for example `invalid spec: spec.sections[1].blocks[0].items[2].value: expected a number`. Fix that field and run it again.
 
-All text is HTML-escaped. Inside any text you may use two kinds of inline markup: `` `code` `` for commands, paths and identifiers, and `**bold**` for the one term a paragraph defines. A blank line inside a `text` value starts a new paragraph. Text may not contain `{{` or `}}`.
+All text is HTML-escaped. Inside any text except chart and flow labels (which are drawn as SVG and show markup literally) you may use two kinds of inline markup: `` `code` `` for commands, paths and identifiers, and `**bold**` for the one term a paragraph defines. A blank line inside a `text` value starts a new paragraph. Text may not contain `{{` or `}}`.
 
 ## Top level
 

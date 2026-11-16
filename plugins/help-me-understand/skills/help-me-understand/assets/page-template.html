@@ -163,7 +163,7 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
 
   // Steppers show one step at a time with Back, Next and Start over. Without JavaScript, or when printing, every step stays visible.
   Array.prototype.forEach.call(document.querySelectorAll("[data-stepper]"),function(root){
-    var steps=root.querySelectorAll(".step");
+    var steps=root.querySelectorAll(":scope>.steps>.step");
     if(steps.length<2)return;
     var cur=0;
     var ctl=document.createElement("div");
