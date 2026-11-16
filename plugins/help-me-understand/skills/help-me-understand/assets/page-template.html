@@ -91,7 +91,8 @@ h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
   .c4 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(var(--ic) / 2 - 1px);border-top:2px solid var(--muted)}
   .c4 .arrow::after{left:auto;right:0;bottom:auto;top:calc(var(--ic) / 2 - 5px);border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted)}
   .c4 .arrow-lbl{width:100%;text-align:center;font-size:13px}}
-@container (min-width:700px){.c5 .chain-row{flex-direction:row;align-items:flex-start}
+/* Five nodes go left to right only where each gets room for a long word; a 50rem sheet is not wide enough, so they stack there instead of breaking words mid-word. */
+@container (min-width:800px){.c5 .chain-row{flex-direction:row;align-items:flex-start}
   .c5 .node{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
   .c5 .arrow{flex:0 0 clamp(56px,11cqi,96px);height:auto;min-height:0;margin:0;padding:calc(var(--ic) / 2 + 8px) 0 0;border:0;align-items:flex-start}
   .c5 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(var(--ic) / 2 - 1px);border-top:2px solid var(--muted)}
@@ -143,7 +144,8 @@ section{display:flex;flex-direction:column;gap:24px}
 .stop{--pad:clamp(18px,4vw,34px);--surface:var(--bg);position:relative;background:var(--sheet);border:1px solid var(--line);border-radius:20px;padding:var(--pad);scroll-margin-top:24px}
 .stop>h2{display:flex;gap:14px;align-items:flex-start;margin:calc(-1*var(--pad)) calc(-1*var(--pad)) 4px;padding:18px var(--pad);background:var(--accent-soft);border-radius:19px 19px 0 0}
 .stop>h2 .dot{margin-top:-1px;background:var(--accent);color:var(--accent-fg)}
-.stop>h2 code{background:var(--sheet)}
+/* Inline code is tinted with the accent; on a surface already tinted with it, the chip takes the sheet colour so it stays visible. */
+.stop>h2 code,.hero code,.ba code,.hl code{background:var(--sheet)}
 .stop .chart .dot{stroke:var(--sheet)}
 .stop .what::before{background:var(--sheet)}
 .stop+.stop{margin-top:calc(var(--join) - var(--gap));--join:32px}
@@ -291,10 +293,12 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
   .stepper.js .step.off{display:block}
   /* Printing shows collapsed content too, so the paper copy is complete. */
   ::details-content{content-visibility:visible;display:block}
-  .hero{break-inside:avoid}
-  /* Browsers drop backgrounds when printing by default, which would leave the filled heading number white on white. */
+  /* A figure moves to the next page whole, so its title is never left behind and the heading above it follows. */
+  .hero,figure{break-inside:avoid}
+  /* A heading stays with the content under it, so no page ends on a heading. */
   .stop>h2{break-after:avoid}
-  .stop>h2 .dot{background:none;color:var(--accent)}
+  /* Browsers drop backgrounds when printing by default, which would leave the filled heading number and the filled chain and verdict icons white on white. */
+  .stop>h2 .dot,.node.out .node-ic,.win-ic{background:none;color:var(--accent)}
   /* Paper is white, so print with the light tokens even when the reader's screen is in dark mode. */
   :root:not([data-theme="light"]),:root[data-theme]{
     --bg:#fff; --surface:#fff; --fg:#000; --muted:#56605b; --line:#d9ded8;
