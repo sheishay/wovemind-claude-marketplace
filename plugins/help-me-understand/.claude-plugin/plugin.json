@@ -1,0 +1,9 @@
+{
+  "name": "help-me-understand",
+  "description": "Turns a long or tangled answer, file or web page into a published page that is easy to take in: bottom line first, small chunks, a visual wherever one carries the point, plain English.",
+  "version": "1.0.0",
+  "author": {"name": "Wovemind"},
+  "homepage": "https://github.com/wovemind-sg/claude-marketplace/tree/main/plugins/help-me-understand#readme",
+  "repository": "https://github.com/wovemind-sg/claude-marketplace",
+  "license": "MIT"
+}

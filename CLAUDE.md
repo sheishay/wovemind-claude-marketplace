@@ -73,7 +73,8 @@ for f in \
   plugins/compliance-audit/skills/audit/scripts/detect_signals.py \
   plugins/compliance-audit/skills/audit/scripts/license_scan.py \
   plugins/compliance-audit/skills/apply/scripts/parse_cards.py \
-  plugins/design-inspiration/skills/mockup/scripts/strip_wrapper.py; do
+  plugins/design-inspiration/skills/mockup/scripts/strip_wrapper.py \
+  plugins/help-me-understand/skills/help-me-understand/scripts/build_page.py; do
   python3 "$f" --selftest || break
 done
 ```
