@@ -434,6 +434,24 @@
         "mod",
         "automation"
       ]
+    },
+    {
+      "name": "help-me-understand",
+      "source": "./plugins/help-me-understand",
+      "description": "Turns a long or tangled answer, file or web page into a published page that is easy to take in: the whole idea as a picture first, then a few short stops that each lead with a visual, in plain English.",
+      "author": {
+        "name": "Wovemind"
+      },
+      "license": "MIT",
+      "category": "workflow",
+      "homepage": "https://github.com/wovemind-sg/claude-marketplace/tree/main/plugins/help-me-understand#readme",
+      "repository": "https://github.com/wovemind-sg/claude-marketplace",
+      "tags": [
+        "explain",
+        "artifact",
+        "adhd",
+        "learning"
+      ]
     }
   ]
 }
