@@ -977,7 +977,7 @@ class Balance(HTMLParser):
             self.stack.append(tag)
         if tag in ("style", "script", "title"):
             self.skip += 1
-        if tag in ("p", "li", "h1", "h2", "h3", "h4", "summary", "dt", "dd", "tr", "figcaption", "div", "text"):
+        if tag in ("p", "li", "h1", "h2", "h3", "h4", "summary", "dt", "dd", "tr", "figcaption", "div", "pre", "text"):
             self.text.append("\n")
         if tag == "span":
             self.text.append(" ")
@@ -1006,7 +1006,8 @@ def page_text(html):
     parser = Balance()
     parser.feed(html)
     parser.close()
-    text = re.sub(r"[ \t]+", " ", "".join(parser.text))
+    # Runs of blanks collapse except at the start of a line, so a code listing keeps its indentation.
+    text = re.sub(r"(?<=\S)[ \t]+", " ", "".join(parser.text))
     return re.sub(r"\n\s*\n+", "\n", text).strip(), parser
 
 
@@ -1193,6 +1194,9 @@ def selftest():
     one = build(corner)
     assert '<th scope="col"></th>' in one and "That is the answer. 1 stop below shows why" in one
     assert "A cache keeps a copy" in text and "Open your slowest endpoint" in text
+    # A code listing keeps its indentation in the page text and starts on its own line.
+    listing = page_text("<h3>Config</h3><pre><code>queue:\n  trim:\n    length: 5</code></pre>")[0]
+    assert listing == "Config\nqueue:\n  trim:\n    length: 5", repr(listing)
 
     def rejects(mutate, field):
         spec = json.loads(json.dumps(SAMPLE))
