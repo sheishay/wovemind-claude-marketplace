@@ -310,8 +310,11 @@ def r_flow(b, p):
         parts.append('<line class="edge" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" marker-end="url(#%s-arrow)"></line>'
                      % (x1, y1, x2, y2, b["_id"]))
         if e.get("label"):
+            # Put the label on the arrow's outer side, away from the diagram's centre line, so it does not sit on a sibling arrow.
             mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0
-            parts.append('<text class="elbl" x="%.1f" y="%.1f" dx="6">%s</text>' % (mx, my + 4, esc(e["label"])))
+            left = mx < width / 2.0 - 1
+            parts.append('<text class="elbl" x="%.1f" y="%.1f" dx="%d" text-anchor="%s">%s</text>'
+                         % (mx, my + 4, -8 if left else 8, "end" if left else "start", esc(e["label"])))
     for i in ids:
         x, y0 = pos[i]
         parts.append('<rect class="node" x="%.1f" y="%.1f" width="%d" height="%d" rx="6"></rect>' % (x, y0, NODE_W, heights[i]))
@@ -347,7 +350,7 @@ def r_before_after(b, p):
 
 
 def r_check(b, p):
-    return ('<details class="check"><summary><span class="eyebrow">Check yourself</span>%s</summary>'
+    return ('<details class="check"><summary><span class="eyebrow">Check yourself</span><span class="q">%s</span></summary>'
             '<div class="answer">%s</div></details>') % (inline(need(b, "question", p)), paras(need(b, "answer", p)))
 
 
@@ -557,6 +560,8 @@ class Balance(HTMLParser):
             self.skip += 1
         if tag in ("p", "li", "h1", "h2", "h3", "h4", "summary", "dt", "dd", "tr", "figcaption", "div", "text"):
             self.text.append("\n")
+        if tag == "span":
+            self.text.append(" ")
         if tag in ("td", "th"):
             self.text.append(" | ")
 
