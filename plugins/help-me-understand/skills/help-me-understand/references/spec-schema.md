@@ -4,7 +4,7 @@ The page spec is one JSON file. `scripts/build_page.py <spec.json> <out.html>` v
 
 Every limit on this page is enforced by the script. When a field will not fit, do not squeeze the words into another field: turn the sentence into a visual block, or move it into the top-level `reference` list, which has no word limits.
 
-All text is HTML-escaped. Inside any text except chart, flow and icon-array labels (which are drawn as SVG and show markup literally) you may use two kinds of inline markup: `` `code` `` for commands, paths and identifiers, and `**bold**` for the one term a paragraph defines. A blank line inside a `text` value starts a new paragraph. Text may not contain `{{` or `}}`. Word counts split on spaces, so `` `ALTER TABLE orders` `` counts as three words.
+All text is HTML-escaped. Inside any text except chart and flow labels (which are drawn as SVG and show markup literally) you may use two kinds of inline markup: `` `code` `` for commands, paths and identifiers, and `**bold**` for the one term a paragraph defines. A blank line inside a `text` value starts a new paragraph. Text may not contain `{{` or `}}`. Word counts split on spaces, so `` `ALTER TABLE orders` `` counts as three words.
 
 ## Top level
 
@@ -61,7 +61,7 @@ Every block has a `type`. Optional fields can be left out. On every block, `titl
 | `flow` | `nodes`: 1 to 8 of `{ "id", "label" }`, `edges`: `[{ "from", "to", "label" }]`, `title`, `caption` | Boxes and arrows with branching, laid out top to bottom. Node `label` is 8 words, edge `label` 4. Ids must be unique, edges must name existing ids, and loops are rejected. |
 | `timeline` | `items`: 1 to 5 of `{ "when", "title", "text" }` | Dated or ordered events. `when` is 4 words, `title` 8, `text` (optional) 18. |
 | `before_after` | `before` and `after`: `{ "label", "text" }`, `caption` | One thing in two states. `label` (4 words) defaults to Before and After; `text` is 25 words. |
-| `check` | `question` (25 words), `answer` | A click-to-reveal "Check yourself" prompt. Concept pages only. The answer stays collapsed and has no limit. |
+| `check` | `question` (25 words), `answer` | A click-to-reveal "Check yourself" prompt, for concept pages. The answer stays collapsed and has no limit. |
 | `details` | `summary` (10 words), `text` and/or `items` | One collapsed note that belongs inside this stop. The body has no limit. Detail that is not tied to one stop goes in `reference`. |
 | `glossary` | `terms`: 1 to 4 of `{ "term", "definition" }` | The terms the page relies on, each defined once. `term` is 4 words, `definition` 16. |
 | `svg` | `svg` (one `<svg>` element as a string), `caption` (required) | A bespoke diagram the other blocks cannot draw. |
