@@ -1,60 +1,145 @@
 <title>{{TITLE}}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: one calm reading column of about 65 characters per line (48ch, since ch is the width of a zero); bottom line first, visuals inside the column, next action last. */
+/* Layout: a wide opening picture with the bottom line under it, a route of numbered stops, then one calm reading column of about 65 characters per line (48ch) in which each stop leads with a visual. */
 :root{
   --bg:#f5f6f3; --surface:#ffffff; --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
   --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#ffffff;
   --before:#6b625a; --before-soft:#f0ece7;
+  --good:#17684f; --bad:#b3372d; --warn:#875800; --info:#2d5c9a;
   --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --gap:clamp(64px,10vw,104px);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
   --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
-  --before:#c3b6aa; --before-soft:#2a2521; color-scheme:dark}}
+  --before:#c3b6aa; --before-soft:#2a2521;
+  --good:#72cfb0; --bad:#f2928a; --warn:#e3b55c; --info:#93b8ee; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121614; --surface:#1a201d; --fg:#e4eae6; --muted:#9ca8a1; --line:#2c3531;
   --accent:#72cfb0; --accent-soft:#183128; --accent-fg:#0d1512;
-  --before:#c3b6aa; --before-soft:#2a2521; color-scheme:dark}
+  --before:#c3b6aa; --before-soft:#2a2521;
+  --good:#72cfb0; --bad:#f2928a; --warn:#e3b55c; --info:#93b8ee; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin:0;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:48px 80px;
   -webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
-.page{max-width:48ch;margin:0 auto;display:flex;flex-direction:column;gap:56px;overflow-wrap:break-word}
-.page>*{min-width:0}
+.page{max-width:46rem;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap);overflow-wrap:break-word}
+.page>*{width:100%;max-width:48ch;margin-inline:auto;min-width:0}
+.page>.top,.page>.route{max-width:none}
 p{margin:0}
-p+p{margin-top:.8em}
+:where(.b-text,.answer,.more,.ref,.step,.what,.next,.ba>div) p+p{margin-top:.8em}
 a{color:var(--accent);text-underline-offset:3px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
 code{font:.88em var(--font-mono);background:var(--accent-soft);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
 strong{font-weight:650}
-h1{font-size:clamp(30px,6vw,40px);line-height:1.12;letter-spacing:-.015em;margin:8px 0 24px;text-wrap:balance;font-weight:700}
-h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0 0 18px;text-wrap:balance;font-weight:680;scroll-margin-top:24px}
-h4{font-size:17px;line-height:1.35;margin:0 0 6px;font-weight:650;display:flex;gap:10px;align-items:baseline}
-.eyebrow{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(30px,5.5vw,42px);line-height:1.1;letter-spacing:-.018em;margin:0;text-wrap:balance;font-weight:720}
+h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0;text-wrap:balance;font-weight:680;scroll-margin-top:24px}
+h3,h4{font-size:17px;line-height:1.35;margin:0;font-weight:650}
+h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.ic{display:block;width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
 #progress{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;background:var(--accent);transform-origin:0 50%;transform:scaleX(0);z-index:10}
-.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
-.bottom-line{background:var(--accent-soft);border-radius:14px;padding:20px 22px}
-.bottom-line .eyebrow{color:var(--accent)}
-.bottom-line p{font-size:20px;line-height:1.5;font-weight:560;margin-top:6px;text-wrap:pretty}
 
-.toc ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:toc;font-size:15px}
-.toc li{counter-increment:toc;display:flex;gap:10px}
-.toc li::before{content:counter(toc);color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.2em}
-.toc a{color:var(--fg);text-decoration:none}
-.toc a:hover{color:var(--accent);text-decoration:underline}
+/* The opening: title, then the one bold element on the page, the gist picture with the bottom line under it. */
+.top{display:flex;flex-direction:column;gap:20px}
+.hero{background:var(--accent-soft);border-radius:22px;padding:clamp(22px,4.5vw,40px);display:flex;flex-direction:column;gap:clamp(22px,3.5vw,32px)}
+.gist{margin:0;container-type:inline-size}
+.bottom-line{font-size:clamp(19px,2.6vw,22px);line-height:1.45;font-weight:560;max-width:40ch;text-wrap:pretty}
+.stopline{color:var(--muted);font-size:15.5px}
+.top+.route{margin-top:calc(28px - var(--gap))}
 
-section{display:flex;flex-direction:column;gap:22px}
-section>h2{margin-bottom:-4px}
+/* Chains: top to bottom by default, left to right once their container is wide enough for the node count. */
+.chain{container-type:inline-size;--ic:44px}
+.gist .chain{--ic:56px}
+.chain-row{display:flex;flex-direction:column}
+.node{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:14px;align-items:center;min-width:0}
+.node-ic{width:var(--ic);height:var(--ic);border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);background:var(--surface);font-size:calc(var(--ic) * .46)}
+.node.out .node-ic{background:var(--accent);color:var(--accent-fg)}
+.node.out .ic{stroke-width:2.1}
+.node-txt{display:flex;flex-direction:column;min-width:0}
+.node-lbl{font-weight:620;line-height:1.3;text-wrap:balance}
+.gist .node-lbl{font-size:18px}
+.node.out .node-lbl{font-weight:740}
+.node-note{font-size:14.5px;color:var(--muted);line-height:1.4;margin-top:2px}
+.arrow{position:relative;margin-left:calc(var(--ic) / 2 - 1px);border-left:2px solid var(--muted);min-height:34px;padding:6px 0 12px 22px;display:flex;align-items:center;font-size:14px;color:var(--muted);line-height:1.3}
+.arrow::after{content:"";position:absolute;left:-6px;bottom:-1px;border-style:solid;border-width:7px 5px 0 5px;border-color:var(--muted) transparent transparent transparent}
+.arrow-lbl{font-style:italic}
+/* Wide enough for the node count: left to right, arrows through the icon centres with their labels above. */
+@container (min-width:300px){.c2 .chain-row{flex-direction:row;align-items:flex-start}
+  .c2 .node{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+  .c2 .arrow{flex:0 0 clamp(60px,13cqi,100px);height:var(--ic);min-height:0;margin:0;padding:0;border:0}
+  .c2 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(50% - 1px);border-top:2px solid var(--muted)}
+  .c2 .arrow::after{left:auto;right:0;bottom:auto;top:calc(50% - 5px);border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted)}
+  .c2 .arrow-lbl{position:absolute;left:0;right:0;bottom:calc(50% + 6px);text-align:center;font-size:13px}}
+@container (min-width:440px){.c3 .chain-row{flex-direction:row;align-items:flex-start}
+  .c3 .node{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+  .c3 .arrow{flex:0 0 clamp(60px,13cqi,100px);height:var(--ic);min-height:0;margin:0;padding:0;border:0}
+  .c3 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(50% - 1px);border-top:2px solid var(--muted)}
+  .c3 .arrow::after{left:auto;right:0;bottom:auto;top:calc(50% - 5px);border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted)}
+  .c3 .arrow-lbl{position:absolute;left:0;right:0;bottom:calc(50% + 6px);text-align:center;font-size:13px}}
+@container (min-width:580px){.c4 .chain-row{flex-direction:row;align-items:flex-start}
+  .c4 .node{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+  .c4 .arrow{flex:0 0 clamp(60px,13cqi,100px);height:var(--ic);min-height:0;margin:0;padding:0;border:0}
+  .c4 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(50% - 1px);border-top:2px solid var(--muted)}
+  .c4 .arrow::after{left:auto;right:0;bottom:auto;top:calc(50% - 5px);border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted)}
+  .c4 .arrow-lbl{position:absolute;left:0;right:0;bottom:calc(50% + 6px);text-align:center;font-size:13px}}
+@container (min-width:700px){.c5 .chain-row{flex-direction:row;align-items:flex-start}
+  .c5 .node{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+  .c5 .arrow{flex:0 0 clamp(60px,13cqi,100px);height:var(--ic);min-height:0;margin:0;padding:0;border:0}
+  .c5 .arrow::before{content:"";position:absolute;left:4px;right:6px;top:calc(50% - 1px);border-top:2px solid var(--muted)}
+  .c5 .arrow::after{left:auto;right:0;bottom:auto;top:calc(50% - 5px);border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted)}
+  .c5 .arrow-lbl{position:absolute;left:0;right:0;bottom:calc(50% + 6px);text-align:center;font-size:13px}}
+
+/* Verdict: the winner large, the alternatives beside it, each with the reason it lost. */
+.verdict{display:grid;gap:22px}
+.win{display:flex;gap:18px;align-items:center;min-width:0}
+.win-ic{flex:none;width:60px;height:60px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font-size:30px}
+.win-ic .ic{stroke-width:2.4}
+.win-name{font-size:clamp(28px,6cqi,42px);font-weight:760;line-height:1.08;letter-spacing:-.018em}
+.win-why{font-size:17px;margin-top:6px;line-height:1.4}
+.alts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.alts li{display:flex;gap:10px;align-items:baseline;line-height:1.4}
+.alts .ic{color:var(--muted);font-size:17px;transform:translateY(3px)}
+.alts li>span{display:flex;flex-direction:column;min-width:0}
+.alts strong{font-weight:640}
+.alt-why{color:var(--muted);font-size:15.5px}
+@container (min-width:540px){.verdict{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:center;gap:32px}}
+
+/* Status: large numerals, each with a state icon and a short label. */
+.status{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 24px}
+@container (min-width:520px){.status.n3{grid-template-columns:repeat(3,minmax(0,1fr))}.status.n4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.status li{display:flex;flex-direction:column;gap:8px;min-width:0}
+.st-n{font-size:clamp(44px,10cqi,68px);font-weight:760;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.st-l{display:flex;gap:8px;align-items:flex-start;font-weight:600;line-height:1.3}
+.st-l .ic{font-size:20px;margin-top:1px}
+.s-good .ic,.s-done .ic{color:var(--good)}
+.s-bad .ic,.s-blocked .ic{color:var(--bad)}
+.s-warn .ic,.s-open .ic{color:var(--warn)}
+.s-info .ic{color:var(--info)}
+
+/* Route: one numbered dot per stop, joined by a line; the stop in view is filled. */
+.route ol{list-style:none;margin:0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(4rem,1fr);overflow-x:auto}
+.route li{position:relative;min-width:0}
+.route li+li::before{content:"";position:absolute;top:14px;left:calc(-50% + 20px);right:calc(50% + 20px);border-top:2px solid var(--line)}
+.route a{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;text-decoration:none;color:var(--muted);font-size:13.5px;line-height:1.3;padding:0 4px 4px;hyphens:auto}
+.route a:hover .rl{color:var(--fg);text-decoration:underline}
+.route a.here .dot{background:var(--accent);color:var(--accent-fg)}
+.route a.here .rl{color:var(--fg);font-weight:600}
+.dot{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--accent);display:inline-grid;place-items:center;font-size:14px;font-weight:700;line-height:1;color:var(--accent);background:var(--bg);font-variant-numeric:tabular-nums}
+
+section{display:flex;flex-direction:column;gap:24px}
+.stop>h2{display:flex;gap:14px;align-items:flex-start}
+.stop>h2 .dot{margin-top:-1px}
 .block{min-width:0}
 .list{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px}
 .list li::marker{color:var(--muted)}
 .list+.more,.more .list{margin-top:10px}
 
-figure{margin:0;display:flex;flex-direction:column;gap:10px}
+figure{margin:0;display:flex;flex-direction:column;gap:12px}
 figcaption{font-size:14.5px;color:var(--muted);line-height:1.5}
 .figtitle{font-size:15px;font-weight:650}
 .scroll{overflow-x:auto;max-width:100%}
@@ -76,10 +161,48 @@ figcaption{font-size:14.5px;color:var(--muted);line-height:1.5}
 .svgslot{color:var(--fg)}
 .svgslot svg{display:block;max-width:100%;height:auto;margin:0 auto}
 
+/* Big figures: the number first, then what it counts, then what it is out of. */
+/* Flex rather than grid, so a figure that does not fit beside the others moves to its own line instead of breaking. */
+.stats{display:flex;flex-wrap:wrap;gap:20px 24px}
+.stat{flex:1 1 0;border-left:3px solid var(--accent);padding-left:14px}
+.stat-v{white-space:nowrap;font-size:32px;font-weight:740;line-height:1.1;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+.stat-l{display:flex;gap:7px;align-items:baseline;font-weight:600;margin-top:6px;line-height:1.35}
+.stat-l .ic{color:var(--accent);font-size:17px;transform:translateY(3px)}
+.stat-n{font-size:14.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+
+.ia{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center}
+.dots{flex:none;max-width:100%;height:auto}
+.dots .on{fill:var(--accent)}
+.dots .off{fill:none;stroke:var(--muted);stroke-width:1.2}
+.ia-text{min-width:0;flex:1 1 12rem}
+.ia-n{color:var(--muted);font-size:17px;line-height:1.2}
+.ia-n strong{font-size:36px;font-weight:740;color:var(--fg);margin-right:4px;letter-spacing:-.015em}
+.ia-text p+p{font-weight:600;margin-top:4px;line-height:1.4}
+
+.cardsfig{container-type:inline-size}
+.cards{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+@container (min-width:420px){.cards.n2,.cards.n4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:640px){.cards.n3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Three cards in a mid-width column stack as rows, the title beside its points, so no card sits alone. */
+@container (min-width:420px) and (max-width:639.98px){
+  .cards.n3 .card{display:grid;grid-template-columns:11rem minmax(0,1fr);column-gap:18px;align-items:start}
+  .cards.n3 .card h3{grid-row:1 / span 2}
+  .cards.n3 .card p,.cards.n3 .card .points{grid-column:2;margin-top:0}
+  .cards.n3 .card p+.points{margin-top:6px}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.card h3{display:flex;gap:9px;align-items:flex-start;line-height:1.3}
+.card h3 .ic{font-size:20px;margin-top:1px}
+.card p{font-size:15px;color:var(--muted);line-height:1.45;margin-top:6px}
+.points{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:15px;line-height:1.4}
+.points li{display:flex;gap:8px;align-items:baseline}
+.points .ic{font-size:14px;stroke-width:2.6;transform:translateY(2px)}
+.points .pro .ic{color:var(--good)}
+.points .con .ic{color:var(--bad)}
+
 table{border-collapse:collapse;width:100%;font-size:15px;line-height:1.45;background:var(--surface);border-radius:10px;overflow:hidden}
 .tablefig .scroll{border:1px solid var(--line);border-radius:10px}
 th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid var(--line)}
-thead th{border-top:0;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:650;white-space:nowrap}
+thead th{border-top:0;font-size:14px;color:var(--muted);font-weight:650}
 tbody th{font-weight:650}
 .hl{background:var(--accent-soft)}
 thead .hl{color:var(--accent)}
@@ -109,7 +232,7 @@ thead .hl{color:var(--accent)}
 .ba>div{border-radius:12px;padding:16px 18px;min-width:0}
 .ba-before{background:var(--before-soft)}
 .ba-after{background:var(--accent-soft)}
-.ba-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.ba-label{font-size:15px;font-weight:700;margin-bottom:4px}
 .ba-before .ba-label{color:var(--before)}
 .ba-after .ba-label{color:var(--accent)}
 @media (max-width:520px){.ba{grid-template-columns:1fr}}
@@ -123,32 +246,44 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
 .check{border:1.5px dashed var(--accent);border-radius:12px;padding:14px 18px}
 .check>summary{font-weight:600;display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:baseline}
 .check>summary::before{grid-row:2;grid-column:1}
-.check .eyebrow{color:var(--accent);grid-row:1;grid-column:2}
+.check .ck{color:var(--accent);font-size:14px;font-weight:650;grid-row:1;grid-column:2}
 .check .q{grid-row:2;grid-column:2}
 .check .answer{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
-.also{border-top:1px solid var(--line);padding-top:20px}
 .count{font-size:12.5px;font-weight:650;background:var(--line);color:var(--fg);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}
 
-.glossary{margin:0;display:flex;flex-wrap:wrap;gap:8px}
-.glossary div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14.5px;line-height:1.45;flex:1 1 14em;min-width:0}
+/* The reference drawer and the tangents sit together after the stops, both closed. */
+.drawer,.also{border-top:1px solid var(--line);padding-top:20px}
+.drawer>summary{font-size:17px;font-weight:650}
+.drawer+.also{margin-top:calc(8px - var(--gap))}
+.ref{padding-top:18px;font-size:15.5px;line-height:1.6}
+.ref h3{font-size:16px;margin-bottom:4px}
+.ref .list{margin-top:8px}
+
+.glossary{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:14px 28px}
+.glossary div{font-size:15px;line-height:1.45;min-width:0}
 .glossary dt{font-weight:650}
 .glossary dd{margin:0;color:var(--muted)}
 
 .next{border:2px solid var(--accent);border-radius:14px;padding:20px 22px;background:var(--surface)}
-.next .eyebrow{color:var(--accent)}
-.next-text{font-size:19px;font-weight:600;line-height:1.45;margin-top:6px}
-.next p:not(.next-text){color:var(--muted);margin-top:8px;font-size:15.5px}
+.next-h{font-size:15px;font-weight:650;color:var(--accent)}
+.next-text{font-size:19px;font-weight:600;line-height:1.45;margin-top:4px}
+.next p:not(.next-text):not(.next-h){color:var(--muted);margin-top:8px;font-size:15.5px}
+.next+.sources{margin-top:calc(32px - var(--gap))}
 .sources h2{font-size:15px;font-weight:650;margin-bottom:8px}
 .sources{font-size:14.5px;color:var(--muted);gap:0}
 
 @media print{
-  #progress,.controls{display:none}
+  #progress,.controls,.route{display:none}
   .stepper.js .step.off{display:block}
+  /* Printing shows collapsed content too, so the paper copy is complete. */
+  ::details-content{content-visibility:visible;display:block}
+  .hero{break-inside:avoid}
   /* Paper is white, so print with the light tokens even when the reader's screen is in dark mode. */
   :root:not([data-theme="light"]),:root[data-theme]{
     --bg:#fff; --surface:#fff; --fg:#000; --muted:#56605b; --line:#d9ded8;
     --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#fff;
-    --before:#6b625a; --before-soft:#f0ece7; color-scheme:light}
+    --before:#6b625a; --before-soft:#f0ece7;
+    --good:#17684f; --bad:#b3372d; --warn:#875800; --info:#2d5c9a; color-scheme:light}
 }
 </style>
 <div id="progress" aria-hidden="true"></div>
@@ -165,6 +300,28 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
   window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
   window.addEventListener("resize",update);
   update();
+
+  // The route marks the stop in view. Without JavaScript it is a plain list of links.
+  var links={};
+  Array.prototype.forEach.call(document.querySelectorAll(".route a"),function(a){links[a.getAttribute("href").slice(1)]=a;});
+  if("IntersectionObserver" in window){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(!e.isIntersecting)return;
+        for(var id in links){
+          var on=id===e.target.id;
+          links[id].classList.toggle("here",on);
+          if(on)links[id].setAttribute("aria-current","step");else links[id].removeAttribute("aria-current");
+        }
+      });
+    },{rootMargin:"-30% 0px -60% 0px"});
+    Array.prototype.forEach.call(document.querySelectorAll("section.stop"),function(s){io.observe(s);});
+  }
+
+  // Opening every collapsed block before printing keeps the paper copy complete in browsers without ::details-content.
+  window.addEventListener("beforeprint",function(){
+    Array.prototype.forEach.call(document.querySelectorAll("details"),function(d){d.open=true;});
+  });
 
   // Steppers show one step at a time with Back, Next and Start over. Without JavaScript, or when printing, every step stays visible.
   Array.prototype.forEach.call(document.querySelectorAll("[data-stepper]"),function(root){
