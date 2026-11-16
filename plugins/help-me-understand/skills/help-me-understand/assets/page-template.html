@@ -40,6 +40,8 @@ h2{font-size:23px;line-height:1.25;letter-spacing:-.01em;margin:0;text-wrap:bala
 h3,h4{font-size:17px;line-height:1.35;margin:0;font-weight:650}
 h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+/* Labels inside flex rows may hold a long identifier with no break point; let it break rather than widen the page. */
+.stop>h2>span:last-child,.st-l>span,.card h3>span,.stat-l>span,.points li>span,.node-lbl,.node-note,.win-name,.alts li>span,.ia-text{min-width:0;overflow-wrap:anywhere}
 .ic{display:block;width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
 #progress{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;background:var(--accent);transform-origin:0 50%;transform:scaleX(0);z-index:10}
@@ -97,6 +99,7 @@ h4{margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
 /* Verdict: the winner large, the alternatives beside it, each with the reason it lost. */
 .verdict{display:grid;gap:22px}
 .win{display:flex;gap:18px;align-items:center;min-width:0}
+.win>div{min-width:0}
 .win-ic{flex:none;width:60px;height:60px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font-size:30px}
 .win-ic .ic{stroke-width:2.4}
 .win-name{font-size:clamp(28px,6cqi,42px);font-weight:760;line-height:1.08;letter-spacing:-.018em}

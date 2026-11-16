@@ -48,7 +48,8 @@ LIMITS = {
 }
 MAX_SECTIONS, MAX_TEXT_BLOCKS, MAX_DETAILS = 5, 2, 1
 MAX_LIST_ITEMS, MAX_TERMS, MAX_COLS, MAX_ROWS = 6, 4, 5, 6
-STAT_CHARS, ICON_ARRAY_TOTAL = 12, 100
+MAX_STEPS, MAX_EVENTS, MAX_CHART_ITEMS, MAX_FLOW_NODES, MAX_CHECKS, MAX_TALLY = 5, 5, 6, 8, 1, 9999
+STAT_CHARS, SHORT_CHARS, ICON_ARRAY_TOTAL = 12, 24, 100
 # Blocks that are reading text or collapsed; every other block is a visual, and each section needs one.
 NOT_VISUAL = {"text", "list", "details", "check", "glossary"}
 STATES = {"good": "check-circle", "bad": "cross-circle", "warn": "warning", "info": "info",
@@ -264,13 +265,17 @@ def r_list(b, p):
 
 
 def r_stepper(b, p):
-    steps = need(b, "steps", p, list)
+    steps = sized(b, "steps", p, 1, MAX_STEPS)
     out = []
     for n, s in enumerate(steps):
         sp = "%s.steps[%d]" % (p, n)
         body = paras(capped(s, "text", sp, "step_text"))
         if s.get("block") is not None:
-            body += render_block(need(s, "block", sp, dict), sp + ".block")
+            # Only a visual may sit inside a step, so a step cannot hide extra prose, collapsed text or a second stepper.
+            inner = need(s, "block", sp, dict)
+            if inner.get("type") in NOT_VISUAL or inner.get("type") == "stepper":
+                raise SpecError("%s.block.type: a step may hold one visual block, not %s" % (sp, inner.get("type")))
+            body += render_block(inner, sp + ".block")
         out.append('<li class="step"><h4><span class="num">%d</span>%s</h4>%s</li>' % (
             n + 1, inline(capped(s, "title", sp, "step_title")), body))
     return '<div class="stepper" data-stepper><ol class="steps">%s</ol></div>' % "".join(out)
@@ -312,7 +317,7 @@ def r_table(b, p):
 
 
 def chart_items(b, p):
-    items = need(b, "items", p, list)
+    items = sized(b, "items", p, 1, MAX_CHART_ITEMS)
     return [(capped(it, "label", "%s.items[%d]" % (p, n), "chart_label"), need(it, "value", "%s.items[%d]" % (p, n), float))
             for n, it in enumerate(items)]
 
@@ -385,7 +390,7 @@ NODE_W, LINE_H, GAP_X, GAP_Y, PAD = 168, 16, 36, 56, 8
 
 
 def r_flow(b, p):
-    nodes = need(b, "nodes", p, list)
+    nodes = sized(b, "nodes", p, 1, MAX_FLOW_NODES)
     edges = b.get("edges") or []
     if not isinstance(edges, list):
         raise SpecError("%s.edges: expected a list" % p)
@@ -468,7 +473,7 @@ def r_flow(b, p):
 
 
 def r_timeline(b, p):
-    items = need(b, "items", p, list)
+    items = sized(b, "items", p, 1, MAX_EVENTS)
     lis = []
     for n, it in enumerate(items):
         ip = "%s.items[%d]" % (p, n)
@@ -734,7 +739,7 @@ def r_gist(g, p):
         lis = []
         for n, t in enumerate(sized(g, "tallies", p, 2, 4)):
             tp = "%s.tallies[%d]" % (p, n)
-            count = whole(t, "count", tp, 0, 10 ** 9)
+            count = whole(t, "count", tp, 0, MAX_TALLY)
             st = state_of(t, tp, TALLY_STATES, optional=False)
             lis.append('<li class="s-%s"><span class="st-n">%s</span><span class="st-l">%s<span>%s</span>%s</span></li>' % (
                 st, fmt(count), icon(STATES[st], tp), inline(capped(t, "label", tp, "tally_label")), sr("(%s)" % st)))
@@ -770,13 +775,8 @@ def first_read_words(obj):
 
 
 def prose_words(block):
-    """First-read words in text blocks and visible list items, including those nested in stepper steps."""
-    kind = block.get("type") if isinstance(block, dict) else None
-    if kind in ("text", "list"):
-        return first_read_words(block)
-    if kind == "stepper":
-        return sum(prose_words(s.get("block")) for s in block.get("steps") or [] if isinstance(s, dict))
-    return 0
+    """First-read words of a text block or of a list's visible items; zero for any other block."""
+    return first_read_words(block) if block.get("type") in ("text", "list") else 0
 
 
 def balance(spec):
@@ -799,6 +799,8 @@ def check_section(s, sp):
                         "sentence that carries a number, proportion, mechanism or comparison into one" % (sp, ", ".join(sorted(NOT_VISUAL))))
     if kinds.count("text") > MAX_TEXT_BLOCKS:
         raise SpecError("%s.blocks: at most %d text blocks per section" % (sp, MAX_TEXT_BLOCKS))
+    if kinds.count("check") > MAX_CHECKS:
+        raise SpecError("%s.blocks: at most %d check block per section" % (sp, MAX_CHECKS))
     if kinds.count("details") > MAX_DETAILS:
         raise SpecError("%s.blocks: at most %d details block per section; move the rest into the top-level reference list" % (sp, MAX_DETAILS))
     prose = sum(prose_words(b) for b in blocks)
@@ -843,6 +845,8 @@ def build(spec):
         sp = "spec.sections[%d]" % n
         heading = capped(s, "heading", sp, "heading")
         short = capped(s, "short", sp, "short")
+        if len(short) > SHORT_CHARS:
+            raise SpecError("%s.short: keep the route label to %d characters so it fits under its dot on a phone" % (sp, SHORT_CHARS))
         blocks = check_section(s, sp)
         sid = "sec-%d" % (n + 1)
         route.append('<li><a href="#%s"><span class="dot">%d</span><span class="rl">%s</span></a></li>' % (sid, n + 1, inline(short)))
@@ -1137,6 +1141,7 @@ def selftest():
     rejects(lambda s: sec(s, 0).pop("short"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0).update(short="one two three four"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0).update(heading=long_(LIMITS["heading"])), "spec.sections[0].heading")
+    rejects(lambda s: sec(s, 0).update(short="Internationalisation considerations"), "spec.sections[0].short")
     rejects(lambda s: sec(s, 0)["blocks"].pop(1), "spec.sections[0].blocks")
     rejects(lambda s: sec(s, 3)["blocks"].insert(0, {"type": "text", "text": long_(LIMITS["text"])}), "spec.sections[3].blocks[0].text")
     rejects(lambda s: sec(s, 0)["blocks"].extend([{"type": "text", "text": "More."}] * 2), "spec.sections[0].blocks")
@@ -1184,6 +1189,21 @@ def selftest():
     rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"].extend([{"sign": "+", "text": "x"}] * 2), "spec.sections[3].blocks[1].cards[0].points")
     rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"][0].update(sign="*"), "spec.sections[3].blocks[1].cards[0].points[0].sign")
     rejects(lambda s: blk(s, 3, 1)["cards"][0]["points"][0].update(text=long_(LIMITS["point"])), "spec.sections[3].blocks[1].cards[0].points[0].text")
+    rejects(lambda s: blk(s, 2, 0).update(unit="one two three four"), "spec.sections[2].blocks[0].unit")
+    rejects(lambda s: blk(s, 1, 0)["steps"][1]["block"]["after"].update(label=long_(LIMITS["ba_label"])), "steps[1].block.after.label")
+    rejects(lambda s: blk(s, 1, 3)["items"][0].update(when=long_(LIMITS["tl_when"])), "spec.sections[1].blocks[3].items[0].when")
+    rejects(lambda s: blk(s, 1, 3).update(items=[{"when": "x", "title": "y"}] * (MAX_EVENTS + 1)), "spec.sections[1].blocks[3].items")
+    rejects(lambda s: blk(s, 1, 1)["nodes"][0].update(label=long_(LIMITS["flow_label"])), "spec.sections[1].blocks[1].nodes[0].label")
+    rejects(lambda s: blk(s, 1, 1)["nodes"].extend([{"id": "n%d" % i, "label": "x"} for i in range(MAX_FLOW_NODES)]), "spec.sections[1].blocks[1].nodes")
+    rejects(lambda s: blk(s, 2, 0).update(items=[{"label": "x", "value": 1}] * (MAX_CHART_ITEMS + 1)), "spec.sections[2].blocks[0].items")
+    rejects(lambda s: blk(s, 1, 0).update(steps=[{"title": "x", "text": "y"}] * (MAX_STEPS + 1)), "spec.sections[1].blocks[0].steps")
+    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "details", "summary": "x", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
+    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
+    rejects(lambda s: sec(s, 0)["blocks"].append({"type": "check", "question": "x", "answer": "y"}), "spec.sections[0].blocks")
+    rejects(lambda s: blk(s, 3, 1)["cards"].extend([{"title": "x"}] * 3), "spec.sections[3].blocks[1].cards")
+    rejects(lambda s: s.update(gist=dict(VERDICT, alternatives=[{"name": long_(LIMITS["alt_name"]), "why_not": "b"}])), "spec.gist.alternatives[0].name")
+    rejects(lambda s: s.update(gist=dict(STATUS, tallies=STATUS["tallies"] * 2)), "spec.gist.tallies")
+    rejects(lambda s: s.update(gist=dict(STATUS, tallies=[dict(STATUS["tallies"][0], count=MAX_TALLY + 1)] * 2)), "spec.gist.tallies[0].count")
     bad_svgs = [
         "<svg><script>alert(1)</script></svg>",
         "<svg><rect onclick=\"x()\"/></svg>",
