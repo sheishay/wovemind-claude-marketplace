@@ -29,7 +29,7 @@ body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin
 .page{max-width:50rem;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap);overflow-wrap:break-word}
 .page>*{width:100%;min-width:0}
 /* Line length matters for prose, not for pictures, so only text-bearing parts are held to the reading measure. */
-.b-text,.b-list,.step>p,.b-timeline,.b-check,.b-details,figcaption,.ref,.also>.list,.next,.sources{max-width:48ch}
+.b-text,.b-list,.step>p,.b-timeline,.b-check,figcaption,.more>p,.more>.list,.ref>p,.ref>.list,.also>.list,.next,.sources{max-width:48ch}
 p{margin:0}
 :where(.b-text,.answer,.more,.ref,.step,.what,.next,.ba>div) p+p{margin-top:.8em}
 a{color:var(--accent);text-underline-offset:3px}
@@ -151,6 +151,14 @@ section{display:flex;flex-direction:column;gap:24px}
 .stop+.stop{margin-top:calc(var(--join) - var(--gap));--join:32px}
 .stop+.stop::before{content:"";position:absolute;left:calc(var(--pad) + 14px);top:calc(-1*var(--join) - 1px);height:var(--join);border-left:2px solid var(--line)}
 .block{min-width:0}
+/* A block's title is a sub-heading inside its stop, so a long stop reads as a few labelled parts. */
+.sub{font-size:17px;margin:10px 0 10px;max-width:48ch}
+.sub+.list{margin-top:0}
+/* Blocks inside a collapsed note or the reference drawer keep the same spacing as blocks in a stop. */
+.more>.block,.ref>.block{margin-top:16px}
+/* Code is shown as written: no wrapping, and it scrolls sideways inside its own box instead of widening the page. */
+pre{margin:0;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font:13.5px/1.55 var(--font-mono);tab-size:4}
+pre code{background:none;padding:0;font:inherit;overflow-wrap:normal;white-space:pre}
 .list{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px}
 .list li::marker{color:var(--muted)}
 .list+.more,.more .list{margin-top:10px}
