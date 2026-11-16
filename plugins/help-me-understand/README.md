@@ -51,7 +51,7 @@ You get a link to the page, its bottom line in one sentence and one next action.
 - One collapsed "Full detail" drawer for reference material, then "Also worth knowing", a collapsed block for tangents.
 - One "Next action" card and the sources.
 
-Light and dark themes, a text column of about 65 characters per line, keyboard access with visible focus, no autoplaying motion, and no external scripts, fonts or images. With JavaScript off, every stepper step is visible and the route is a plain list of links; when printed, every step and every collapsed block is shown.
+Light and dark themes, running text held to about 65 characters per line while tables, cards, chains and charts use the full page width, keyboard access with visible focus, no autoplaying motion, and no external scripts, fonts or images. With JavaScript off, every stepper step is visible and the route is a plain list of links; when printed, every step and every collapsed block is shown.
 
 ## Defaults
 

@@ -1,7 +1,7 @@
 <title>{{TITLE}}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: a wide opening picture with the bottom line under it, a route of numbered stops, then one calm reading column of about 65 characters per line (48ch) in which each stop leads with a visual. */
+/* Layout: a wide opening picture with the bottom line under it, a route of numbered stops, then the stops. Running text keeps to about 65 characters per line (48ch); tables, cards, chains, charts and other visuals use the full page width. */
 :root{
   --bg:#f5f6f3; --surface:#ffffff; --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
   --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#ffffff;
@@ -27,8 +27,9 @@ body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin
   -webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 .page{max-width:46rem;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap);overflow-wrap:break-word}
-.page>*{width:100%;max-width:48ch;margin-inline:auto;min-width:0}
-.page>.top,.page>.route{max-width:none}
+.page>*{width:100%;min-width:0}
+/* Line length matters for prose, not for pictures, so only text-bearing parts are held to the reading measure. */
+.stop>h2,.b-text,.b-list,.b-stepper,.b-timeline,.b-check,.b-details,figcaption,.drawer,.also,.next,.sources{max-width:48ch}
 p{margin:0}
 :where(.b-text,.answer,.more,.ref,.step,.what,.next,.ba>div) p+p{margin-top:.8em}
 a{color:var(--accent);text-underline-offset:3px}
