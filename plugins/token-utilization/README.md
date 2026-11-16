@@ -46,7 +46,7 @@ The prompt is not sent, with the reason shown, when:
 In **wrap-up** mode:
 
 - **Main agent working, no subagents**: its turn is interrupted and a wrap-up prompt follows. The prompt tells the agent to finish a small remainder or stop and leave the work easy to continue, and to end with handoff notes.
-- **Subagents running**: nobody is interrupted. Each running subagent gets the wrap-up message inside its run and reports what is done and what is left. The main agent reads its wrap-up message with the result of its next tool call. When a subagent the mod messaged reports back after the stop, that report goes through without the restart question.
+- **Subagents running**: nobody is interrupted. Each running subagent gets the wrap-up message inside its run and reports what is done and what is left. The main agent reads its wrap-up message with the result of its next tool call. If it makes no further tool call, it never sees the message, and its ordinary final answer is saved as the handoff. When a subagent the mod messaged reports back after the stop, that report goes through without the restart question.
 - **Main agent idle**: running background subagents get the wrap-up message, and the session is marked stopped. With none running, nothing is sent.
 - **Hard ceiling**: usage is cut off 5 points above the limit, at most 100%. If usage reaches the ceiling during the wrap-up, the main turn is cancelled and every running subagent is stopped.
 
@@ -64,6 +64,7 @@ Notifications about subagents the mod stopped are dropped without a question or 
 ## Limits
 
 - Usage readings arrive with model responses and move in whole points, so the stop can land a point or two above the number you named.
+- A new session has no reading until its first response, so a limit that is already passed is not caught when the prompt is sent. The limit is set, and the first reading stops the agent.
 - The session must be open for the mod to act.
 - Background shell commands keep running. They spend no tokens.
 - If no usage reading has arrived yet (for example, no subscription), the status line says `no reading yet`, and a transcript line warns after the first turn that the limit cannot take effect.
