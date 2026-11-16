@@ -2,7 +2,7 @@
   "skill_name": "help-me-understand",
   "evals": [
     {"id": 0, "name": "verbose-research-report",
-     "prompt": "Run /help-me-understand:help-me-understand evals/files/search-research-report.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/search-research-report.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
      "expected_output": "A research page whose bottom line recommends Typesense, with a comparison table of the four options (Postgres full-text search, Meilisearch, Typesense, Elasticsearch) that highlights Typesense, a latency chart drawn from the measured p95 numbers, the conditions that would change the verdict, the unresolved warehouse-boost question as an open item, the 2019 ranking-weight remark and the licence history in Also worth knowing, and one next action: run Typesense in shadow mode against the real query log for a week.",
      "assertions": [
        "The bottom-line card appears directly under the title and recommends Typesense",
@@ -19,7 +19,7 @@
        "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
      ]},
     {"id": 1, "name": "multi-topic-work-summary",
-     "prompt": "Run /help-me-understand:help-me-understand evals/files/sprint-work-summary.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/sprint-work-summary.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
      "expected_output": "A work-summary page that opens with what works now on staging (magic-link login, flaky test fix, Node 22 upgrade), then what changed with the decision to remove password login and its reason, then every open item (CSV export streaming, due-date time-zone bug needing a decision, email provider production access, expired-link message), with the README fix and the slow analytics dashboard as tangents, and one next action: request production access from the email provider.",
      "assertions": [
        "page_type is work-summary and the first section states what works now: magic-link login, the flaky test fix and the Node 22 upgrade, all on staging",
@@ -35,7 +35,7 @@
        "The chat reply contains only the file path (or link), the bottom line in one sentence and the next action, and does not paste the page"
      ]},
     {"id": 2, "name": "dense-technical-answer",
-     "prompt": "Run /help-me-understand:help-me-understand evals/files/postgres-bloat-answer.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
+     "prompt": "Run /help-me-understand:help-me-understand plugins/help-me-understand/skills/help-me-understand/evals/files/postgres-bloat-answer.md. This is a test run: write the HTML page locally and do not publish it with the Artifact tool. Give me the path of the HTML file and the spec you rendered.",
      "expected_output": "A concept page whose bottom line says the orders table grows because the five-hour reporting transaction stops VACUUM from removing dead tuples and the default autovacuum threshold waits for about 8 million dead tuples. It explains MVCC with a concrete example before the general rule, shows how a dead tuple is created and cleaned up as a stepper or flow, defines its terms once, has one or two check-yourself prompts, lists the four fixes in order, and gives one next action about the reporting transaction.",
      "assertions": [
        "page_type is concept and the bottom line names both causes: the long-running reporting transaction and the default autovacuum threshold",
