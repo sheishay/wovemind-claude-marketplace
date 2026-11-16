@@ -50,10 +50,10 @@ Each type has its own section order because readers look for different things fi
 Read `references/spec-schema.md` and write `$WORK/spec.json`. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
 
 1. **List every point in the source first.** Every claim, number, step, option, caveat and open item becomes a line in your working list. Map each one to a section, to a collapsed details block, or to "Also worth knowing". Nothing is dropped, because a page that silently loses a caveat is worse than the long original.
-2. **Bottom line.** One or two sentences: what the reader should remember if they read nothing else. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top.
+2. **Bottom line.** One or two short sentences, 35 words at most (the script rejects more): what the reader should remember if they read nothing else. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top.
 3. **One main idea per section**, with a heading that says the idea ("A bigger pool is not always faster"), not a topic label ("Pool size"). Headings that state the point let a skimming reader get the argument from the nav alone.
 4. **Cap what is displayed, never what is kept.** Show about four items per group; put the rest in a collapsed `details` block or rely on the `list` block, which collapses items past four by itself. Small visible groups fit in working memory, and collapsing keeps the rest one click away.
-5. **Make the first read much shorter than the source.** The first read is everything visible without opening a collapsed block. For a source over about 400 words, aim for half its length or less. The user came here because the original was too long, so a page that keeps every point at full length in the main line has solved nothing. Get there by letting a table, chart or stepper replace the sentences it makes redundant, by stating each point once, and by moving supporting detail (exact figures behind a conclusion, method, minor caveats, reference numbers) into `details` blocks. The script reports the first-read word count when it renders.
+5. **Make the first read much shorter than the source.** The first read is everything visible without opening a collapsed block. For a source over about 400 words, aim for half its length or less. The user came here because the original was too long, so a page that keeps every point at full length in the main line has solved nothing. Get there by letting a table, chart or stepper replace the sentences it makes redundant, by stating each point once, and by moving supporting detail (exact figures behind a conclusion, method, minor caveats, reference numbers) into `details` blocks. The script reports the first-read word count when it renders. Never meet the budget by dropping a visual: a stepper or chart costs few words, and it is the part the original lacked.
 6. **Say only what the source says.** Do not add claims, numbers, conditions or commands of your own, because the reader cannot tell your addition from the original and will trust both equally. A worked example or analogy you add to explain an idea is fine when it is plainly an illustration. If a figure is your own arithmetic from the source's numbers, show the arithmetic.
 7. **Tangents go in `also_worth_knowing`.** Side issues interrupt the main line, but the reader may still need them later.
 8. **One `next_action`:** a concrete thing the reader can do in a few minutes, such as "Open `config/db.yml` and check the pool size". Take it from the source when the source names a next step; otherwise use the smallest first move towards what the source recommends. Knowing something and acting on it are different steps, and a small first step is the one that gets taken.
@@ -61,13 +61,13 @@ Read `references/spec-schema.md` and write `$WORK/spec.json`. You write the spec
 
 ### Choose visuals by the shape of the content
 
-Each visual must carry content the reader needs; if you cannot say what a visual shows that the text does not, leave it out. Pick by the shape of the content:
+Start with the hardest idea in the source, the one a reader is most likely to get lost in, and give it the visual that fits its shape. A page of well-organised text with no picture of its hardest idea has only tidied the original. Then add a visual to any other section whose content has one of the shapes below. Each visual must carry content the reader needs; if you cannot say what a visual shows that the text does not, leave it out.
 
 | Content shape | Visual |
 |---|---|
 | A process or sequence | `stepper` (the reader steps through), or `flow` when the branching matters more than the order |
 | Quantities to compare | `bar_chart` for sizes from zero, `dot_chart` for values on a shared scale that need not start at zero |
-| Options compared on the same criteria | `table`, with the recommended option's column highlighted |
+| Options compared on the same criteria | `table`, with the recommended option's column highlighted. Cells hold a few words or a number (14 words at most); a table of sentences is harder to read than the paragraphs it replaced |
 | Change over time | `timeline` for dated events, `stepper` for stages of one thing changing |
 | One thing before and after | `before_after` |
 | Structure or relationships | `flow`, or a bespoke `svg` when boxes and arrows in layers cannot show it |

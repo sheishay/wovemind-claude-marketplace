@@ -26,6 +26,9 @@ from html.parser import HTMLParser
 
 TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "page-template.html")
 WORDS_PER_MINUTE = 200
+# A bottom line or table cell longer than this is prose in the wrong place.
+BOTTOM_LINE_WORDS = 35
+CELL_WORDS = 14
 VISIBLE_ITEMS = 4
 PAGE_TYPES = ("concept", "research", "work-summary", "how-to")
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
@@ -159,10 +162,15 @@ def r_table(b, p):
     if hl is not None and (isinstance(hl, bool) or not isinstance(hl, int) or not 0 <= hl < len(cols)):
         raise SpecError("%s.highlight_column: expected a column index from 0 to %d" % (p, len(cols) - 1))
 
+    def cell_text(text, path):
+        if isinstance(text, str) and len(text.split()) > CELL_WORDS:
+            raise SpecError("%s: keep table cells to %d words or fewer; put sentences in a text block" % (path, CELL_WORDS))
+        return text_at(text, path)
+
     def cell(tag, text, i, path):
         cls = ' class="hl"' if i == hl else ""
         scope = ' scope="col"' if tag == "th" else ""
-        return "<%s%s%s>%s</%s>" % (tag, cls, scope, inline(text_at(text, path)), tag)
+        return "<%s%s%s>%s</%s>" % (tag, cls, scope, inline(cell_text(text, path)), tag)
 
     corner = '<th scope="col"></th>' if cols[0] == "" else None
     head = "".join(corner if i == 0 and corner else cell("th", c, i, "%s.columns[%d]" % (p, i)) for i, c in enumerate(cols))
@@ -174,7 +182,7 @@ def r_table(b, p):
         for i, c in enumerate(row):
             path = "%s.rows[%d][%d]" % (p, r, i)
             if i == 0:
-                tds.append('<th scope="row"%s>%s</th>' % (' class="hl"' if hl == 0 else "", inline(text_at(c, path))))
+                tds.append('<th scope="row"%s>%s</th>' % (' class="hl"' if hl == 0 else "", inline(cell_text(c, path))))
             else:
                 tds.append(cell("td", c, i, path))
         body.append("<tr>%s</tr>" % "".join(tds))
@@ -523,6 +531,8 @@ def build(spec):
     if ptype not in PAGE_TYPES:
         raise SpecError("spec.page_type: expected one of %s" % ", ".join(PAGE_TYPES))
     bottom = need(spec, "bottom_line", "spec")
+    if len(bottom.split()) > BOTTOM_LINE_WORDS:
+        raise SpecError("spec.bottom_line: keep it to %d words or fewer (got %d)" % (BOTTOM_LINE_WORDS, len(bottom.split())))
     nxt = need(spec, "next_action", "spec", dict)
     sections = need(spec, "sections", "spec", list)
 
@@ -722,6 +732,7 @@ def selftest():
 
     blk = lambda s, sec, i: s["sections"][sec]["blocks"][i]
     rejects(lambda s: s.pop("bottom_line"), "spec.bottom_line")
+    rejects(lambda s: s.update(bottom_line="word " * (BOTTOM_LINE_WORDS + 1)), "spec.bottom_line")
     rejects(lambda s: s.update(title="Caching"), "spec.title")
     rejects(lambda s: s.update(page_type="essay"), "spec.page_type")
     rejects(lambda s: s.update(bottom_line="{{MAIN}}"), "spec.bottom_line")
