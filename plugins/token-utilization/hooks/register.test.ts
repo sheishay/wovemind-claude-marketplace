@@ -16,6 +16,7 @@ function engine(on: On) {
     agents: [] as Agent[],
     answers: [] as (string | undefined)[], // undefined: the dialog is dismissed
     notifyFails: false,
+    dropPluginPrompts: false, // another hook refuses the mod's own prompts
     sent: [] as { text: string; origin?: unknown }[],
     ran: [] as { command: string; args: string }[],
     aborted: [] as string[],
@@ -54,7 +55,11 @@ function engine(on: On) {
     if (e.tool === 'TaskStop') w.stopped.push((e as never as { task_id: string }).task_id)
     return { result: {} as never }
   })
-  on('prompt.submit', (_, e) => (w.sent.push({ text: e.text, origin: e.origin }), { text: e.text }))
+  on('prompt.submit', (_, e) => {
+    if (w.dropPluginPrompts && e.origin?.kind === 'plugin') return { drop: 'blocked' }
+    w.sent.push({ text: e.text, origin: e.origin })
+    return { text: e.text }
+  })
   on('command.run', (_, e) => (w.ran.push({ command: e.command, args: e.args }), { text: '' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -183,6 +188,8 @@ test('T5: dismissed dialog, a limit already passed, and a bad percentage drop th
   const form = /name a percentage from 1 to 100/
   expect((await say($, 'C until /session-token-utilization is high')).drop).toMatch(form)
   expect((await say($, 'D until /session-token-utilization gets to 150%')).drop).toMatch(form)
+  // A percentage in a later sentence is not the limit.
+  expect((await say($, 'F until /session-token-utilization is nearly full. Then raise coverage to 80%.')).drop).toMatch(form)
   expect(w.sent).toEqual([])
   expect(w.asked.length).toBe(1)
   // A -p prompt naming a limit is handled like a typed one: nobody answers, so it is dropped.
@@ -361,6 +368,30 @@ test('T11: armed with no reading: the status says so, and the warning is written
   await turn($, 't2')
   await end($, 't2')
   expect(w.logs.filter(l => l === warning)).toHaveLength(1)
+})
+
+test('T13: a refused wrap-up prompt stops; an interrupted wrap-up turn saves no handoff', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 90%')
+  await turn($, 't1')
+  w.dropPluginPrompts = true
+  await measure($, w, 90)
+  await new Promise(r => setTimeout(r, 0))
+  expect(w.logs).toContain('token-utilization: wrap-up prompt not sent (blocked), stopped')
+  expect(w.status).toBe('stopped at the usage limit')
+
+  w.dropPluginPrompts = false
+  await measure($, w, 10)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 20%')
+  await turn($, 't2')
+  await measure($, w, 20)
+  await turn($, 't3')
+  await $.turn.complete({ turnId: 't3', answer: 'half a', durationMs: 1, reason: 'aborted', isAborted: true })
+  expect(w.written[HANDOFF]).toBeUndefined()
+  expect(w.logs.at(-1)).toMatch(/handoff notes not saved .*ended with aborted/)
 })
 
 test('the state survives a reload', async ($, on) => {

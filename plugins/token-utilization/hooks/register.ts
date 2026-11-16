@@ -19,8 +19,8 @@ type State = {
 
 const NAME: Record<Kind, string> = { five_hour: 'session', seven_day: 'weekly' }
 const TOKEN = String.raw`(?<![\w./-])\/(session|weekly)-token-utilization(?![\w-])`
-// "until /session-token-utilization gets to 90%": "until" through the percentage.
-const CLAUSE = new RegExp(String.raw`(?:\buntil\s+)?${TOKEN}(?:[^\n/%]*?(\d+(?:\.\d+)?)\s*%)?`, 'gi')
+// "until /session-token-utilization gets to 90%": "until" through the percentage, within one sentence.
+const CLAUSE = new RegExp(String.raw`(?:\buntil\s+)?${TOKEN}(?:[^\n/%.;!?]*?(\d+(?:\.\d+)?)\s*%)?`, 'gi')
 const FORM = 'token-utilization: name a percentage from 1 to 100, e.g. "until /session-token-utilization gets to 90%". Prompt not sent.'
 const IMMEDIATE = 'Stop immediately'
 const WRAP = 'Wrap up first'
@@ -134,7 +134,15 @@ async function trip($: $, s: State, limit: Limit, readings: Reading[]) {
     }
     await save($, { ...s, phase: 'wrapping', ceiling }, readings)
     await $.turn.abort({ turnId }).catch(err => debug($, `abort failed: ${err}`))
-    void $.prompt.submit({ text: mainText(label, true, false, path, ceiling.percent) }).catch(err => debug($, `submit failed: ${err}`))
+    // Not awaited inside the measure hook. If the prompt never enters, stop instead of waiting
+    // for a wrap-up turn that would capture whatever main turn comes next.
+    void $.prompt.submit({ text: mainText(label, true, false, path, ceiling.percent) })
+      .then(r => { if (r.drop !== undefined) throw r.drop })
+      .catch(async err => {
+        $.ui.log(`token-utilization: wrap-up prompt not sent (${err}), stopped`)
+        const cur = await load($)
+        if (cur?.phase === 'wrapping' && !cur.wrapTurnId) await save($, { ...cur, phase: 'stopped', ceiling: undefined })
+      })
     $.ui.log(`token-utilization: ${label}, wrapping up; cut off at ${ceiling.percent}%`)
     return
   }
@@ -204,7 +212,8 @@ export const register: Register = on => {
       const path = await handoffPath($)
       const root = await $.session.root()
       try {
-        await $.fs.write(`${root}/${path}`, r.text)
+        if (e.reason !== 'answer') throw new Error(`the wrap-up turn ended with ${e.reason}`)
+        await $.fs.write(`${root}/${path}`, e.answer)
         await $.fs.write(`${root}/.claude/handoffs/.gitignore`, '*\n')
         $.ui.log(`token-utilization: handoff notes saved to ${path}`)
       } catch (err) {
@@ -291,15 +300,13 @@ export const register: Register = on => {
     const s = await load($)
     const readings = e.rateLimits as Reading[]
     const reached = (l: Limit) => (now(readings, l.kind) ?? -1) >= l.percent
-    if (s?.phase === 'armed') {
-      const hit = s.limits.find(reached)
-      if (hit) await trip($, s, hit, readings)
-      else await save($, s, readings)
-    } else if (s?.ceiling && reached(s.ceiling)) {
+    const hit = s?.phase === 'armed' ? s.limits.find(reached) : undefined
+    if (s && hit) await trip($, s, hit, readings)
+    else if (s?.ceiling && reached(s.ceiling)) {
       const c = s.ceiling
       await stopAll($, s, readings)
       $.ui.log(`token-utilization: ${NAME[c.kind]} usage reached ${c.percent}% during the wrap-up, stopped`)
-    } else if (s) await save($, s, readings)
+    } else if (s) $.ui.status(statusText(s, readings)) // nothing changed but the readings
     return next(e)
   })
 }
