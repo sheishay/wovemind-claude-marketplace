@@ -1,5 +1,27 @@
 # Web capture with playwright-cli
 
+## Capture everything with `capture.py`
+
+With both servers up (see "Serve base and head"), capture every selected screen, state, viewport and theme of both sides in one call, run from the repo root:
+
+```bash
+python3 -I "${CLAUDE_SKILL_DIR}/scripts/capture.py" --config .ui-audit/config.json --manifest .ui-audit/manifest.json --work "$WORK" \
+  --side head=http://localhost:8123 --side base=http://localhost:8124 \
+  --screens home,login --themes light+dark      # --screens default: every config screen
+```
+
+It opens one playwright-cli session per side x viewport x theme (`head-mobile-dark`), all in parallel, each running one `run-code` call that loops over its jobs and does exactly what the sections below describe: `state-load` of `web.storage_state`, `resize`, mobile emulation, dark setup, a fresh `goto` per state, freeze CSS plus `web.freeze_css`, fonts and network idle, the recipe steps (shapes in `config-schema.md`), the full-page routine (or a viewport shot for `full_page: false`). It writes the layout below plus `<state>.txt` (page text after the steps) and prints JSON:
+
+- `written`: PNG paths, each checked to exist at the viewport width.
+- `failed`: `{session, screen, state, key, error}`. A job that throws (bad selector, timeout, unknown step shape) does not stop the others. A dark session fails when its method left the page background and text color unchanged on every side (one side unchanged is fine: the base may predate dark mode; a base-only call never fails on this). An `--only` rerun of a dark item without its light item still gets this check: the dark session reads the light colors itself before it switches theme (no extra screenshot). Rerun fixed items with `--only <key> ...`. Exit code 1 when anything failed.
+- `redirects`: `{side, screen, route, to}` for default states that landed on another selected screen's route (no image kept on that side). Only head entries go into the spec `redirects` (without `side`); a base-only one is handled as in SKILL.md step 4.
+- `not_found`: `{side, screen, route}` for routes that answered 404 (no image; not a failure).
+- `final_urls` and `truncated` (shots cut at 16000 px; say so in the report).
+
+Starting servers, the base worktree, seeding, `login_steps` and motion clips are not scripted. The commands below are what the script runs, and the manual path for exploring a new recipe, debugging a failing one and recording motion clips.
+
+## Manual capture with playwright-cli
+
 Use the `playwright-cli` skill for the browser. Commands below were verified against the fixture. Read its `references/running-code.md` (run-code), `video-recording.md` (screencast) and `storage-state.md` (login) when you need more than what is shown.
 
 ## Layout of captures
@@ -15,13 +37,13 @@ Run `playwright-cli` from `$WORK` (it creates a `.playwright-cli/` dir in the cu
 
 - Head: the working tree, started with `web.launch`.
 - Base: `git worktree add "$WORK/base-src" <base_sha>` (detached), then run the same `web.launch` from there on another port. Run `web.seed` in both so data is identical. Remove the worktree afterwards (`git worktree remove --force`).
-- Wait for `ready_url` (poll with `curl -sf`) before capturing. Start servers so you hold the real PID, for example `python3 -m http.server PORT >/dev/null 2>&1 & SRV=$!` in the same shell as the later `kill $SRV` (a `( ... &)` subshell loses the PID). `playwright-cli open` can answer "browser not open" on the next command; wait a second and retry.
+- Start both servers together, then wait for each `ready_url` (poll with `curl -sf`) before capturing. Start servers so you hold the real PID, for example `python3 -m http.server PORT >/dev/null 2>&1 & SRV=$!` in the same shell as the later `kill $SRV` (a `( ... &)` subshell loses the PID). `playwright-cli open` can answer "browser not open" on the next command; wait a second and retry.
 
 ## Viewports
 
 Desktop: `playwright-cli -s=head-desktop open` then `resize 1440 900`.
 
-Mobile is browser emulation, not a different browser: viewport, device scale factor, touch and mobile UA. Chromium is the default browser of `open` (the `--browser` flag only accepts `chrome`, `firefox`, `webkit`, `msedge`). `open --mobile` or `open --device "iphone 15"` give a ready-made emulation; use the CDP call below when the config needs exact values. The CDP call was verified against the fixture (innerWidth 390, touch points 1, mobile UA). It applies to the page's session and must be repeated in each new session:
+Mobile is browser emulation, not a different browser: viewport, device scale factor, touch and mobile UA. Chromium is the default browser of `open` (the `--browser` flag only accepts `chrome`, `firefox`, `webkit`, `msedge`). `open --mobile` or `open --device "iphone 15"` give a ready-made emulation; use the CDP call below when the config needs exact values. The CDP call was verified against the fixture (innerWidth 390, touch points 1, mobile UA). It applies to the page's session and must be repeated in each new session, and after every `resize` or `setViewportSize` (the full-page routine calls it), which silently drops it back to DPR 1 and `mobile: false`; `capture.py` re-applies it before each state and after each full-page resize:
 
 ```bash
 playwright-cli -s=head-mobile open "$BASE_URL"
@@ -69,15 +91,19 @@ async page => {
     }
     return Math.max(h, 0);
   });
-  let extra = 0;
+  let extra = 0, cut = false;
   for (let i = 0; i < 5; i++) {
-    const total = Math.min(orig.height + extra + await need(), MAX);
+    const want = orig.height + extra + await need();
+    const total = Math.min(want, MAX);
+    cut = want > MAX;
     if (total <= orig.height + extra) break; // stopped growing
     extra = total - orig.height;
     await page.setViewportSize({width: orig.width, height: total});
     await page.waitForTimeout(300);
   }
-  await page.screenshot({path: '/abs/path/<screen>/<viewport>/<state>.png', fullPage: true});
+  // fullPage alone shoots the whole document, so the cap needs a clip
+  await page.screenshot({path: '/abs/path/<screen>/<viewport>/<state>.png', fullPage: true,
+    ...(cut ? {clip: {x: 0, y: 0, width: orig.width, height: MAX}} : {})});
   await page.setViewportSize(orig);
 }
 ```
