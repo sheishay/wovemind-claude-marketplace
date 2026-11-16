@@ -43,10 +43,10 @@ Every block has a `type`. Optional fields can be left out.
 The script rejects the fragment, naming the problem, if it breaks any of these:
 
 - It must be exactly one `<svg>` element with nothing after it.
-- Allowed elements: `svg`, `g`, `defs`, `marker`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text`, `tspan`, `title`, `desc`, `linearGradient`, `radialGradient`, `stop`, `use`, `symbol`, `clipPath`, `mask`, `pattern`. No `script`, `style`, `foreignObject`, `a` or `image`.
+- Allowed elements: `svg`, `g`, `defs`, `marker`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text`, `tspan`, `linearGradient`, `radialGradient`, `stop`, `use`, `symbol`, `clipPath`, `mask`, `pattern`. No `script`, `style`, `foreignObject`, `a`, `image`, `title` or `desc`, and no comments, CDATA or declarations (anything starting with `<!`).
 - No `on...` event attributes. `href` and `xlink:href` must start with `#`. `url(...)` may only point at `#id`. No URLs anywhere.
 
-Draw strokes and text in `currentColor` so the diagram follows the light and dark themes. Set a `viewBox` and leave out `width` and `height`. Add `role="img"` and an `aria-label` that states what the picture shows. `xmlns` attributes are removed automatically.
+Draw strokes and text in `currentColor` so the diagram follows the light and dark themes. Set a `viewBox` and leave out `width` and `height`. Add `role="img"` and an `aria-label` that states what the picture shows; use `aria-label` rather than a `<title>` element. `xmlns` attributes are removed automatically.
 
 ## Complete example
 

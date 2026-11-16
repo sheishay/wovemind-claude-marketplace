@@ -50,7 +50,7 @@ You get a link to the page, its bottom line in one sentence and one next action.
 - "Also worth knowing", a collapsed block for tangents.
 - One "Next action" card and the sources.
 
-Light and dark themes, a text column about 60 characters wide, keyboard access with visible focus, no autoplaying motion, and no external scripts, fonts or images. With JavaScript off or when printed, every stepper step is visible.
+Light and dark themes, a text column of about 65 characters per line, keyboard access with visible focus, no autoplaying motion, and no external scripts, fonts or images. With JavaScript off or when printed, every stepper step is visible.
 
 ## Defaults
 

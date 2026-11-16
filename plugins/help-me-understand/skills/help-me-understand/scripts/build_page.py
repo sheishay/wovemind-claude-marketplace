@@ -217,19 +217,18 @@ def r_dot_chart(b, p):
     if any(v < lo or v > hi for _, v in items):
         raise SpecError("%s.items: every value must lie between min and max" % p)
     unit = b.get("unit") or ""
-    rows = []
+    rows, row_h = [], 58  # label line, value line above the dot, then the track
     for n, (label, v) in enumerate(items):
-        y = n * ROW
+        y = n * row_h
         x = 2 + 90.0 * (v - lo) / (hi - lo)
-        anchor = "end" if x > 70 else "start"
-        dx = -10 if anchor == "end" else 10
+        anchor = "start" if x < 10 else ("end" if x > 84 else "middle")
         rows.append(
             '<text class="lbl" x="0" y="%d">%s</text>'
+            '<text class="val" x="%.2f%%" y="%d" text-anchor="%s">%s</text>'
             '<line class="track" x1="2%%" y1="%d" x2="92%%" y2="%d"></line>'
             '<circle class="dot" cx="%.2f%%" cy="%d" r="6"></circle>'
-            '<text class="val" x="%.2f%%" y="%d" dx="%d" text-anchor="%s">%s</text>'
-            % (y + 14, esc(label), y + 29, y + 29, x, y + 29, x, y + 33, dx, anchor, esc(fmt(v) + unit)))
-    h = len(items) * ROW
+            % (y + 14, esc(label), x, y + 32, anchor, esc(fmt(v) + unit), y + 44, y + 44, x, y + 44))
+    h = len(items) * row_h
     scale = ('<text class="tick" x="2%%" y="%d">%s</text><text class="tick" x="92%%" y="%d" text-anchor="end">%s</text>'
              % (h + 10, esc(fmt(lo) + unit), h + 10, esc(fmt(hi) + unit)))
     svg = '<svg class="chart" width="100%%" height="%d" role="img" aria-label="%s">%s%s</svg>' % (
@@ -333,9 +332,10 @@ def r_timeline(b, p):
     lis = []
     for n, it in enumerate(items):
         ip = "%s.items[%d]" % (p, n)
-        text = paras(it["text"]) if it.get("text") is not None and need(it, "text", ip) else ""
+        when, title = need(it, "when", ip), need(it, "title", ip)
+        text = need(it, "text", ip, optional=True)
         lis.append('<li><span class="when">%s</span><div class="what"><strong>%s</strong>%s</div></li>'
-                   % (inline(need(it, "when", ip)), inline(need(it, "title", ip)), text))
+                   % (inline(when), inline(title), paras(text) if text else ""))
     return '<ol class="timeline">%s</ol>' % "".join(lis)
 
 
@@ -343,7 +343,7 @@ def r_before_after(b, p):
     sides = []
     for key, default in (("before", "Before"), ("after", "After")):
         side = need(b, key, p, dict)
-        label = side.get("label") or default
+        label = need(side, "label", "%s.%s" % (p, key), optional=True) or default
         sides.append('<div class="ba-%s"><div class="ba-label">%s</div>%s</div>'
                      % (key, inline(label), paras(need(side, "text", "%s.%s" % (p, key)))))
     return figure('<div class="ba">%s</div>' % "".join(sides), b.get("caption"), "bafig")
@@ -375,7 +375,7 @@ def r_glossary(b, p):
 
 
 SVG_TAGS = {"svg", "g", "defs", "marker", "rect", "circle", "ellipse", "line", "polyline", "polygon", "path",
-            "text", "tspan", "title", "desc", "lineargradient", "radialgradient", "stop", "use", "symbol",
+            "text", "tspan", "lineargradient", "radialgradient", "stop", "use", "symbol",
             "clippath", "mask", "pattern"}
 REF_ATTRS = {"href", "xlink:href", "src"}
 
@@ -435,8 +435,9 @@ class SvgCheck(HTMLParser):
 
 def r_svg(b, p):
     raw = need(b, "svg", p)
-    if re.search(r"<\s*script|<\s*foreignobject|<\s*style|<!\[cdata", raw, re.I):
-        raise SpecError("%s.svg: <script>, <style>, <foreignObject> and CDATA are not allowed" % p)
+    # Comments, CDATA and declarations are rejected outright: browsers and Python's parser end some of them in different places.
+    if re.search(r"<\s*script|<\s*foreignobject|<\s*style|<!", raw, re.I):
+        raise SpecError("%s.svg: <script>, <style>, <foreignObject>, comments and declarations are not allowed" % p)
     # Inline SVG in HTML needs no namespace declarations, and they would put URLs on the page.
     raw = re.sub(r'\s+xmlns(:\w+)?\s*=\s*("[^"]*"|\'[^\']*\')', "", raw)
     chk = SvgCheck()
@@ -465,6 +466,10 @@ def render_block(b, p):
     kind = need(b, "type", p)
     if kind not in RENDERERS:
         raise SpecError("%s.type: unknown type %r (expected one of %s)" % (p, kind, ", ".join(sorted(RENDERERS))))
+    for key in ("caption", "title", "unit"):
+        need(b, key, p, optional=True)
+    if "ordered" in b and not isinstance(b["ordered"], bool):
+        raise SpecError("%s.ordered: expected true or false" % p)
     _counter[0] += 1
     b = dict(b, _id="v%d" % _counter[0])
     return '<div class="block b-%s">%s</div>' % (kind.replace("_", "-"), RENDERERS[kind](b, p))
@@ -525,7 +530,8 @@ def build(spec):
                 lis.append("<li>%s</li>" % inline(label))
         sources = '<section class="sources" aria-label="Sources"><h2>Sources</h2><ul class="list">%s</ul></section>' % "".join(lis)
 
-    detail = paras(nxt["detail"]) if nxt.get("detail") is not None and need(nxt, "detail", "spec.next_action") else ""
+    detail = need(nxt, "detail", "spec.next_action", optional=True)
+    detail = paras(detail) if detail else ""
     next_card = ('<aside class="next" aria-label="Next action"><div class="eyebrow">Next action</div>'
                  '<p class="next-text">%s</p>%s</aside>') % (inline(need(nxt, "text", "spec.next_action")), detail)
 
@@ -645,7 +651,7 @@ SAMPLE = {
             {"type": "dot_chart", "title": "Hit rate", "unit": "%", "min": 0, "max": 100, "items": [{"label": "Monday", "value": 72}, {"label": "Tuesday", "value": 91}]},
             {"type": "table", "columns": ["Option", "Speed", "Cost"], "rows": [["Redis", "Fast", "Medium"], ["In memory", "Fastest", "Low"]], "highlight_column": 1, "caption": "Speed matters most here."},
             {"type": "details", "summary": "Why not always cache?", "text": "Stale data.", "items": ["Invalidation is hard."]},
-            {"type": "svg", "caption": "A bespoke sketch.", "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 40\" role=\"img\" aria-label=\"Box\"><defs><marker id=\"m\"><path d=\"M0 0L4 2L0 4z\"/></marker></defs><rect x=\"2\" y=\"2\" width=\"40\" height=\"20\" fill=\"none\" stroke=\"currentColor\"/><line x1=\"42\" y1=\"12\" x2=\"90\" y2=\"12\" stroke=\"currentColor\" marker-end=\"url(#m)\"/><text x=\"4\" y=\"34\" fill=\"currentColor\">cache</text></svg>"}]}],
+            {"type": "svg", "caption": "A bespoke sketch.", "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 70\" role=\"img\" aria-label=\"App reads from the cache\"><defs><marker id=\"m\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto\"><path d=\"M0 0L10 5L0 10z\" fill=\"currentColor\"/></marker></defs><rect x=\"10\" y=\"10\" width=\"100\" height=\"40\" rx=\"6\" fill=\"none\" stroke=\"currentColor\"/><text x=\"60\" y=\"35\" text-anchor=\"middle\" font-size=\"13\" fill=\"currentColor\">App</text><line x1=\"110\" y1=\"30\" x2=\"206\" y2=\"30\" stroke=\"currentColor\" marker-end=\"url(#m)\"/><rect x=\"210\" y=\"10\" width=\"100\" height=\"40\" rx=\"6\" fill=\"none\" stroke=\"currentColor\"/><text x=\"260\" y=\"35\" text-anchor=\"middle\" font-size=\"13\" fill=\"currentColor\">Cache</text></svg>"}]}],
     "also_worth_knowing": ["Browsers have their own cache."],
     "next_action": {"text": "Open your slowest endpoint and time it twice.", "detail": "If the second call is not faster, nothing is cached."},
     "sources": [{"label": "HTTP caching", "url": "https://example.org/caching"}, {"label": "Team notes"}],
@@ -690,6 +696,9 @@ def selftest():
     rejects(lambda s: blk(s, 1, 1)["edges"].append({"from": "app", "to": "nowhere"}), "spec.sections[1].blocks[1].edges[4].to")
     rejects(lambda s: blk(s, 2, 2)["rows"].append(["only one"]), "spec.sections[2].blocks[2].rows[2]")
     rejects(lambda s: s["sources"][0].update(url="javascript:alert(1)"), "spec.sources[0].url")
+    rejects(lambda s: blk(s, 2, 0).update(caption=5), "spec.sections[2].blocks[0].caption")
+    rejects(lambda s: blk(s, 1, 2)["items"].append("not an object"), "spec.sections[1].blocks[2].items[2]")
+    rejects(lambda s: blk(s, 1, 0)["steps"][1]["block"]["before"].update(label=3), "spec.sections[1].blocks[0].steps[1].block.before.label")
     bad_svgs = [
         "<svg><script>alert(1)</script></svg>",
         "<svg><rect onclick=\"x()\"/></svg>",
@@ -700,6 +709,8 @@ def selftest():
         "<svg><rect style=\"fill:url(https://evil.example/a)\"/></svg>",
         "<svg><a href=\"#x\"><text>t</text></a></svg>",
         "<svg><g>",
+        "<svg><!--><img src=x onerror=alert(1)>--></svg>",
+        "<svg><title><img src=x onerror=alert(1)></title></svg>",
     ]
     for bad in bad_svgs:
         rejects(lambda s, bad=bad: blk(s, 2, 4).update(svg=bad), "spec.sections[2].blocks[4].svg")

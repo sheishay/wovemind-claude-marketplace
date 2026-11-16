@@ -46,7 +46,7 @@ Each type has its own section order because readers look for different things fi
 
 ## 3. Write the page spec
 
-Read `references/spec-schema.md`. Make a scratch directory for this run (`$WORK`, inside your scratchpad when you have one) and write `$WORK/spec.json`. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
+Read `references/spec-schema.md`. Make a scratch directory for this topic (`$WORK`, inside your scratchpad when you have one) and write `$WORK/spec.json`; on a re-run for the same topic in this conversation, reuse the same directory and file names so the page republishes to the same link. You write the spec yourself rather than delegating it, because deciding what matters and which visual fits needs the whole conversation and real judgment.
 
 1. **List every point in the source first.** Every claim, number, step, option, caveat and open item becomes a line in your working list. Map each one to a section, to a collapsed details block, or to "Also worth knowing". Nothing is dropped, because a page that silently loses a caveat is worse than the long original.
 2. **Bottom line.** One or two sentences: what the reader should remember if they read nothing else. Readers with attention or working-memory limits recall fewer central ideas, so state the central idea outright at the top.

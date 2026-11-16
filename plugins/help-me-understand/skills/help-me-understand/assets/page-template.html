@@ -1,7 +1,7 @@
 <title>{{TITLE}}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: one calm reading column about 60 characters wide; bottom line first, visuals inside the column, next action last. */
+/* Layout: one calm reading column of about 65 characters per line (48ch, since ch is the width of a zero); bottom line first, visuals inside the column, next action last. */
 :root{
   --bg:#f5f6f3; --surface:#ffffff; --fg:#1c2220; --muted:#56605b; --line:#d9ded8;
   --accent:#17684f; --accent-soft:#e1efe8; --accent-fg:#ffffff;
@@ -22,7 +22,7 @@ body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--font-body);margin
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px;
   -webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
-.page{max-width:60ch;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+.page{max-width:48ch;margin:0 auto;display:flex;flex-direction:column;gap:56px}
 .page>*{min-width:0}
 p{margin:0}
 p+p{margin-top:.8em}
@@ -180,7 +180,7 @@ details[open]>summary::before{transform:rotate(45deg) translate(-2px,-2px)}
       next.disabled=cur===steps.length-1;
       replay.disabled=cur===0;
     }
-    back.addEventListener("click",function(){if(cur>0)show(cur-1);});
+    back.addEventListener("click",function(){if(cur>0)show(cur-1);if(back.disabled)next.focus();});
     next.addEventListener("click",function(){if(cur<steps.length-1)show(cur+1);if(next.disabled)replay.focus();});
     replay.addEventListener("click",function(){show(0);next.focus();});
     show(0);

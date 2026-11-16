@@ -4,7 +4,7 @@ This file lists the research each page rule rests on, with the numbers that were
 
 ## How strong the evidence is overall
 
-Noetel et al. (2022), Review of Educational Research, pulled together 29 reviews of multimedia design principles (https://doi.org/10.3102/00346543211052329). Most principles hold up, but the effects are smaller when learners control the pace themselves, as they do on a web page. Treat every rule below as a likely improvement, not a guarantee.
+Noetel et al. (2022), Review of Educational Research, pulled together 29 reviews of multimedia design principles (https://doi.org/10.3102/00346543211052329). The effects of these principles are smaller when learners control the pace themselves, as they do on a web page. Treat every rule below as a likely improvement, not a guarantee.
 
 ## Rules and their sources
 
@@ -27,13 +27,13 @@ Animation beats static pictures modestly overall: Höffler & Leutner (2007), Lea
 Giving learners more control over the material adds almost nothing: Karich, Burns & Maki (2014), g about 0.05. Open-ended interactivity costs effort without a measured gain.
 
 **Bars and dots only, no pie, area or colour-only encodings.**
-People judge position along a common scale most accurately, then length; angle, area and colour are judged worse: Cleveland & McGill (1984), Journal of the American Statistical Association 79; Heer & Bostock (2010), CHI, repeated the experiments online.
+People judge position along a common scale most accurately, then length; angle, area and colour are judged worse: Cleveland & McGill (1984), Journal of the American Statistical Association 79; See also Heer & Bostock (2010), CHI.
 
 **Flow diagrams and bespoke diagrams for structure and relationships.**
 Studying node-and-link maps helps learning: Nesbit & Adesope (2006), Review of Educational Research 76; Schroeder et al. (2018), g = .43 for studying a map.
 
-**A text column about 60 characters wide.**
-Lines of 55 characters per line were read with better comprehension than lines of 100: Dyson & Haselgrove (2001), International Journal of Human-Computer Studies 54. The evidence is modest, so the page uses a moderate width rather than an extreme one.
+**A text column of about 65 characters per line.**
+Lines of 55 characters beat lines of 100 characters: Dyson & Haselgrove (2001), International Journal of Human-Computer Studies 54. The evidence is modest, so the page uses a moderate width rather than an extreme one.
 
 **No special fonts, Bionic Reading or highlighting tricks.**
 No single font is best for everyone: Wallace et al. (2022), ACM Transactions on Computer-Human Interaction 29(4). Bionic Reading showed no effect on reading: Acta Psychologica (2024), https://pubmed.ncbi.nlm.nih.gov/38723450/. The page uses the reader's system font.
