@@ -26,6 +26,9 @@ const IMMEDIATE = 'Stop immediately'
 const WRAP = 'Wrap up first'
 const YES = 'Yes, run it'
 const ACTIVE = ['pending', 'running', 'waiting']
+// In the main wrap-up prompt only: its turn is found by this text in turn.start, which the engine
+// gives as "The token-utilization plugin sent a message:\n<prompt>…".
+const WRAP_MARK = 'End with handoff notes as your final message'
 
 function parse(text: string) {
   const limits: Limit[] = []
@@ -68,6 +71,17 @@ async function load($: $) {
   return (await $.store.get(await stateKey($))) as State | undefined
 }
 
+let queue: Promise<unknown> = Promise.resolve()
+// Runs each read-modify-write of the state one at a time, so no hook saves a stale copy over
+// another's write. fn must not wait on anything that runs this mod's hooks (abort, TaskStop,
+// send, submit): it returns those as an effect for the caller to run after.
+function change<T>(fn: () => Promise<T>): Promise<T> {
+  const r = queue.then(fn)
+  queue = r.catch(() => undefined)
+  return r
+}
+type Effect = (() => Promise<void>) | undefined
+
 async function save($: $, s: State | undefined, readings?: Reading[]) {
   const key = await stateKey($)
   if (s) await $.store.set(key, s)
@@ -77,18 +91,22 @@ async function save($: $, s: State | undefined, readings?: Reading[]) {
 
 const activeAgents = async ($: $) => (await $.agent.list()).filter(a => ACTIVE.includes(a.status))
 
-// Cancels the main turn and stops every running subagent; the state is saved first, so the
-// notifications those stops raise are recognised as the mod's own.
-async function stopAll($: $, s: State, readings?: Reading[]) {
+// Saves the stop and returns the effect that cancels the main turn and stops every running
+// subagent; the state is saved first, so the notifications those stops raise are recognised as
+// the mod's own.
+async function stopAll($: $, s: State, readings: Reading[], log: string): Promise<Effect> {
   const agents = await activeAgents($)
   Object.assign(s, { phase: 'stopped', ceiling: undefined, inject: undefined, wrapTurnId: undefined })
   s.stoppedIds = [...(s.stoppedIds ?? []), ...agents.map(a => a.id)]
   await save($, s, readings)
-  const turnId = (await $.store.get(await turnKey($))) as string | undefined
-  if (turnId) await $.turn.abort({ turnId }).catch(err => debug($, `abort failed: ${err}`))
-  for (const a of agents) {
-    const r = await $.tool.call({ tool: 'TaskStop', task_id: a.id }).catch(err => ({ deny: String(err) }))
-    if ('deny' in r && r.deny !== undefined) debug($, `TaskStop ${a.id} failed: ${r.deny}`)
+  return async () => {
+    const turnId = (await $.store.get(await turnKey($))) as string | undefined
+    if (turnId) await $.turn.abort({ turnId }).catch(err => debug($, `abort failed: ${err}`))
+    for (const a of agents) {
+      const r = await $.tool.call({ tool: 'TaskStop', task_id: a.id }).catch(err => ({ deny: String(err) }))
+      if ('deny' in r && r.deny !== undefined) debug($, `TaskStop ${a.id} failed: ${r.deny}`)
+    }
+    $.ui.log(log)
   }
 }
 
@@ -105,7 +123,7 @@ function mainText(label: string, interrupted: boolean, subagents: boolean, path:
     '- Otherwise stop here and leave the work easy to continue.',
     '',
     `Do not start new work.${subagents ? ' Subagents received the same instruction; collect what they report.' : ''}`,
-    'End with handoff notes as your final message: what is done, what is in progress, what is left,',
+    `${WRAP_MARK}: what is done, what is in progress, what is left,`,
     `and the exact next step. That message is saved to ${path}; to resume later, read that file first. Usage is cut off at ${cutoff}%.`,
   ].join('\n')
 }
@@ -115,13 +133,10 @@ const subText = (label: string, cutoff: number) =>
   'left, finish it. Otherwise stop here and report what is done, what is in progress and what is ' +
   `left. Do not start new work. Usage is cut off at ${cutoff}%.`
 
-async function trip($: $, s: State, limit: Limit, readings: Reading[]) {
+// Saves the tripped state and returns the effect that acts on it.
+async function trip($: $, s: State, limit: Limit, readings: Reading[]): Promise<Effect> {
   const label = `${NAME[limit.kind]} usage reached ${limit.percent}%`
-  if (s.mode === 'immediate') {
-    await stopAll($, s, readings)
-    $.ui.log(`token-utilization: ${label}, stopped`)
-    return
-  }
+  if (s.mode === 'immediate') return stopAll($, s, readings, `token-utilization: ${label}, stopped`)
   const ceiling = { kind: limit.kind, percent: Math.min(100, limit.percent + 5) }
   const turnId = (await $.store.get(await turnKey($))) as string | undefined
   const agents = await activeAgents($)
@@ -130,32 +145,37 @@ async function trip($: $, s: State, limit: Limit, readings: Reading[]) {
     if (!turnId) {
       await save($, { ...s, phase: 'stopped' }, readings)
       $.ui.log(`token-utilization: ${label}, stopped`)
-      return
+      return undefined
     }
     await save($, { ...s, phase: 'wrapping', ceiling }, readings)
-    await $.turn.abort({ turnId }).catch(err => debug($, `abort failed: ${err}`))
-    // Not awaited inside the measure hook. If the prompt never enters, stop instead of waiting
-    // for a wrap-up turn that would capture whatever main turn comes next.
-    void $.prompt.submit({ text: mainText(label, true, false, path, ceiling.percent) })
-      .then(r => { if (r.drop !== undefined) throw r.drop })
-      .catch(async err => {
-        $.ui.log(`token-utilization: wrap-up prompt not sent (${err}), stopped`)
-        const cur = await load($)
-        if (cur?.phase === 'wrapping' && !cur.wrapTurnId) await save($, { ...cur, phase: 'stopped', ceiling: undefined })
-      })
-    $.ui.log(`token-utilization: ${label}, wrapping up; cut off at ${ceiling.percent}%`)
-    return
+    return async () => {
+      await $.turn.abort({ turnId }).catch(err => debug($, `abort failed: ${err}`))
+      // Not awaited inside the measure hook. If the prompt never enters, stop instead of waiting
+      // for a wrap-up turn that never comes.
+      void $.prompt.submit({ text: mainText(label, true, false, path, ceiling.percent) })
+        .then(r => { if (r.drop !== undefined) throw r.drop })
+        .catch(async err => {
+          $.ui.log(`token-utilization: wrap-up prompt not sent (${err}), stopped`)
+          await change(async () => {
+            const cur = await load($)
+            if (cur?.phase === 'wrapping' && !cur.wrapTurnId) await save($, { ...cur, phase: 'stopped', ceiling: undefined })
+          })
+        })
+      $.ui.log(`token-utilization: ${label}, wrapping up; cut off at ${ceiling.percent}%`)
+    }
   }
   // Subagents running: message everyone, interrupt nobody.
   const next: State = { ...s, ceiling, messagedIds: [...(s.messagedIds ?? []), ...agents.map(a => a.id)] }
   if (turnId) Object.assign(next, { phase: 'wrapping', wrapTurnId: turnId, inject: mainText(label, false, true, path, ceiling.percent) })
   else next.phase = 'stopped'
   await save($, next, readings)
-  for (const a of agents) {
-    const r = await $.session.send({ to: { agentId: a.id }, text: subText(label, ceiling.percent) }).catch(err => ({ isDelivered: false, reason: String(err) }))
-    if (!r.isDelivered) debug($, `wrap-up message to ${a.id} not delivered: ${r.reason}`)
+  return async () => {
+    for (const a of agents) {
+      const r = await $.session.send({ to: { agentId: a.id }, text: subText(label, ceiling.percent) }).catch(err => ({ isDelivered: false, reason: String(err) }))
+      if (!r.isDelivered) debug($, `wrap-up message to ${a.id} not delivered: ${r.reason}`)
+    }
+    $.ui.log(`token-utilization: ${label}, ${turnId ? 'wrapping up' : 'stopped; subagents wrapping up'}; cut off at ${ceiling.percent}%`)
   }
-  $.ui.log(`token-utilization: ${label}, ${turnId ? 'wrapping up' : 'stopped; subagents wrapping up'}; cut off at ${ceiling.percent}%`)
 }
 
 // A prompt or command line naming a limit: undefined when it names none, else the text without
@@ -173,7 +193,7 @@ async function arm($: $, text: string): Promise<{ rest: string } | { drop: strin
   }
   const answer = await $.ui.ask('What should happen when the limit is reached?', [IMMEDIATE, WRAP]).catch(() => undefined)
   if (answer !== IMMEDIATE && answer !== WRAP) return { drop: 'token-utilization: no stop mode chosen. Prompt not sent.' }
-  await save($, { limits, mode: answer === IMMEDIATE ? 'immediate' : 'wrap-up', phase: 'armed' }, readings)
+  await change(() => save($, { limits, mode: answer === IMMEDIATE ? 'immediate' : 'wrap-up', phase: 'armed' }, readings))
   return { rest }
 }
 
@@ -188,15 +208,21 @@ export const register: Register = on => {
       description: 'Show the usage limit set for this session, or remove it with off',
       argumentHint: '[off]',
     })
-    await save($, await load($)) // redraw the status after a reload or a resume
+    await change(async () => save($, await load($))) // redraw the status after a reload or a resume
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined) {
       await $.store.set(await turnKey($), e.turnId)
-      const s = await load($)
-      if (s?.phase === 'wrapping' && !s.wrapTurnId) await save($, { ...s, wrapTurnId: e.turnId })
+      // Only the mod's own wrap-up prompt starts the wrap-up turn; a turn queued ahead of it
+      // (a task notification, a scheduled prompt) leaves the state waiting.
+      if (e.text.includes(WRAP_MARK)) {
+        await change(async () => {
+          const s = await load($)
+          if (s?.phase === 'wrapping' && !s.wrapTurnId) await save($, { ...s, wrapTurnId: e.turnId })
+        })
+      }
     }
     return next(e)
   })
@@ -206,9 +232,23 @@ export const register: Register = on => {
     if (e.agentId !== undefined) return r
     const key = await turnKey($)
     if ((await $.store.get(key)) === e.turnId) await $.store.delete(key)
-    const s = await load($)
-    if (s?.wrapTurnId === e.turnId) {
-      await save($, { ...s, phase: 'stopped', wrapTurnId: undefined, inject: undefined })
+    const wrapped = await change(async () => {
+      const s = await load($)
+      if (s?.wrapTurnId === e.turnId) {
+        await save($, { ...s, phase: 'stopped', wrapTurnId: undefined, inject: undefined })
+        return true
+      }
+      if (s?.phase === 'armed' && !s.warned) {
+        const readings = await readingsOf($)
+        const missing = s.limits.filter(l => now(readings, l.kind) === undefined)
+        if (missing.length) {
+          $.ui.log(`token-utilization: no ${missing.map(l => NAME[l.kind]).join(' or ')} usage reading yet, so the limit cannot take effect`)
+          await save($, { ...s, warned: true }, readings)
+        }
+      }
+      return false
+    })
+    if (wrapped) {
       const path = await handoffPath($)
       const root = await $.session.root()
       try {
@@ -219,13 +259,6 @@ export const register: Register = on => {
       } catch (err) {
         $.ui.log(`token-utilization: handoff notes not saved to ${path}: ${err}`)
       }
-    } else if (s?.phase === 'armed' && !s.warned) {
-      const readings = await readingsOf($)
-      const missing = s.limits.filter(l => now(readings, l.kind) === undefined)
-      if (missing.length) {
-        $.ui.log(`token-utilization: no ${missing.map(l => NAME[l.kind]).join(' or ')} usage reading yet, so the limit cannot take effect`)
-        await save($, { ...s, warned: true }, readings)
-      }
     }
     return r
   })
@@ -234,10 +267,13 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     const r = await next(e)
     if (e.agentId !== undefined || e.tool === 'AskUserQuestion' || ('deny' in r && r.deny !== undefined)) return r
-    const s = await load($)
-    if (!s?.inject) return r
-    await save($, { ...s, inject: undefined })
-    return { ...r, context: [...(r.context ?? []), s.inject] } as typeof r
+    const inject = await change(async () => {
+      const s = await load($)
+      if (s?.inject) await save($, { ...s, inject: undefined })
+      return s?.inject
+    })
+    if (!inject) return r
+    return { ...r, context: [...(r.context ?? []), inject] } as typeof r
   })
 
   on('prompt.submit', async ($, e, next) => {
@@ -252,7 +288,8 @@ export const register: Register = on => {
     const s = await load($)
     if (!s) return next(e)
     if (isTyped(o)) {
-      if (s.phase !== 'armed') await save($, undefined) // a typed prompt ends the wrap-up or the stop
+      // A typed prompt ends the wrap-up or the stop.
+      if (s.phase !== 'armed') await change(async () => { if ((await load($))?.phase !== 'armed') await save($, undefined) })
       return next(e)
     }
     if (s.phase !== 'stopped') return next(e)
@@ -271,7 +308,7 @@ export const register: Register = on => {
     }
     const answer = await $.ui.ask('The usage limit was reached. Run this automatic prompt?', [YES, 'No']).catch(() => undefined)
     if (answer !== YES) return { drop: 'token-utilization: automatic prompt not run, the usage limit was reached.' }
-    await save($, undefined)
+    await change(() => save($, undefined))
     return next(e)
   })
 
@@ -279,7 +316,7 @@ export const register: Register = on => {
     if (e.command === 'token-utilization') {
       const arg = e.args.trim().toLowerCase()
       if (arg === 'off') {
-        await save($, undefined)
+        await change(() => save($, undefined))
         return { text: 'token-utilization: limit removed.' }
       }
       if (arg) return { text: 'Usage: /token-utilization [off]' }
@@ -297,16 +334,19 @@ export const register: Register = on => {
   })
 
   on('session.measure', async ($, e, next) => {
-    const s = await load($)
     const readings = e.rateLimits as Reading[]
     const reached = (l: Limit) => (now(readings, l.kind) ?? -1) >= l.percent
-    const hit = s?.phase === 'armed' ? s.limits.find(reached) : undefined
-    if (s && hit) await trip($, s, hit, readings)
-    else if (s?.ceiling && reached(s.ceiling)) {
-      const c = s.ceiling
-      await stopAll($, s, readings)
-      $.ui.log(`token-utilization: ${NAME[c.kind]} usage reached ${c.percent}% during the wrap-up, stopped`)
-    } else if (s) $.ui.status(statusText(s, readings)) // nothing changed but the readings
+    const effect = await change(async (): Promise<Effect> => {
+      const s = await load($)
+      const hit = s?.phase === 'armed' ? s.limits.find(reached) : undefined
+      if (s && hit) return trip($, s, hit, readings)
+      if (s?.ceiling && reached(s.ceiling)) {
+        return stopAll($, s, readings, `token-utilization: ${NAME[s.ceiling.kind]} usage reached ${s.ceiling.percent}% during the wrap-up, stopped`)
+      }
+      if (s) $.ui.status(statusText(s, readings)) // nothing changed but the readings
+      return undefined
+    })
+    await effect?.()
     return next(e)
   })
 }

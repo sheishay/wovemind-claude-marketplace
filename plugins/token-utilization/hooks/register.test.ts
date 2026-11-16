@@ -27,6 +27,7 @@ function engine(on: On) {
     written: {} as Record<string, string>,
     logs: [] as string[],
     status: undefined as string | undefined,
+    gate: undefined as Promise<void> | undefined, // while set, session.usage waits on it
   }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.id', () => ({ value: SID }))
@@ -39,7 +40,10 @@ function engine(on: On) {
     w.notified.push(e.text)
     return { value: { isSent: true, channel: 'iterm2' } }
   })
-  on('session.usage', () => ({ value: { startedAt: 0, context: { used: 0, total: 1 } as never, rateLimits: w.readings } }))
+  on('session.usage', async () => {
+    await w.gate
+    return { value: { startedAt: 0, context: { used: 0, total: 1 } as never, rateLimits: w.readings } }
+  })
   on('agent.list', () => ({ value: w.agents as never }))
   on('turn.abort', (_, e) => (w.aborted.push(e.turnId), { value: undefined }))
   on('session.send', (_, e) => (w.messages.push({ to: e.to, text: e.text }), { isDelivered: true }))
@@ -71,7 +75,10 @@ const composer = { kind: 'composer' } as const
 const start = ($: Engine) => $.session.start({ cwd: '/proj', surface: 'terminal', isInteractive: true })
 const say = ($: Engine, text: string, origin: object = composer) => $.prompt.submit({ text, wait: false, origin } as never)
 const run = ($: Engine, command: string, args = '') => $.command.run({ command, args, origin: composer } as never)
-const turn = ($: Engine, turnId: string) => $.turn.start({ text: '', turnId })
+const turn = ($: Engine, turnId: string, text = '') => $.turn.start({ text, turnId })
+// The wrap-up prompt's turn, its text framed as the engine frames a plugin's prompt.
+const wrapTurn = ($: Engine, w: ReturnType<typeof engine>, turnId: string) =>
+  turn($, turnId, `The token-utilization plugin sent a message:\n${w.sent.at(-1)!.text}`)
 const end = ($: Engine, turnId: string, answer = 'notes') => $.turn.complete({ turnId, answer, durationMs: 1, reason: 'answer', isAborted: false })
 const tool = ($: Engine, agentId?: string) => $.tool.call({ tool: 'Bash', command: 'ls', ...(agentId ? { agentId } : {}) } as never)
 function measure($: Engine, w: ReturnType<typeof engine>, five: number, seven?: number) {
@@ -116,7 +123,7 @@ test('T2: wrap up first, no subagents: abort, wrap-up prompt, handoff saved; idl
   expect(wrap.text).not.toContain('Subagents')
 
   await end($, 't1') // the aborted turn
-  await turn($, 't2') // the wrap-up prompt's turn
+  await wrapTurn($, w, 't2')
   await end($, 't2', 'Done: A. Next: B.')
   expect(w.written[HANDOFF]).toBe('Done: A. Next: B.')
   expect(w.written['/proj/.claude/handoffs/.gitignore']).toBe('*\n')
@@ -208,7 +215,7 @@ test('T6: a reading at limit + 5 during the wrap-up stops everything; a typed pr
   await turn($, 't1')
   await measure($, w, 90)
   await end($, 't1')
-  await turn($, 't2')
+  await wrapTurn($, w, 't2')
   w.agents = [running('a1')]
   await measure($, w, 94)
   expect(w.aborted).toEqual(['t1'])
@@ -388,10 +395,49 @@ test('T13: a refused wrap-up prompt stops; an interrupted wrap-up turn saves no 
   await say($, 'Task until /session-token-utilization gets to 20%')
   await turn($, 't2')
   await measure($, w, 20)
-  await turn($, 't3')
+  await wrapTurn($, w, 't3')
   await $.turn.complete({ turnId: 't3', answer: 'half a', durationMs: 1, reason: 'aborted', isAborted: true })
   expect(w.written[HANDOFF]).toBeUndefined()
   expect(w.logs.at(-1)).toMatch(/handoff notes not saved .*ended with aborted/)
+})
+
+test('T14: a turn queued ahead of the wrap-up prompt is not the wrap-up turn', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Wrap up first']
+  await say($, 'Task until /session-token-utilization gets to 90%')
+  await turn($, 't1')
+  await measure($, w, 90)
+  await end($, 't1')
+  // A background task's notification, queued during t1, runs before the wrap-up prompt.
+  await turn($, 'tn', notification('bash1'))
+  await end($, 'tn', 'The background command finished.')
+  expect(w.written[HANDOFF]).toBeUndefined()
+  expect(w.status).toBe('wrapping up, cut off at session 95% (now 90%)')
+  await wrapTurn($, w, 't2')
+  await end($, 't2', 'Done: A. Next: B.')
+  expect(w.written[HANDOFF]).toBe('Done: A. Next: B.')
+  expect((await run($, 'token-utilization')).text).toMatch(/stopped\.$/)
+})
+
+test('T15: a stop saved by session.measure is not overwritten by a slower hook holding an old copy', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  w.answers = ['Stop immediately']
+  await say($, 'Task until /session-token-utilization gets to 90% or /weekly-token-utilization gets to 70%')
+  await turn($, 't1')
+  // turn.complete reads the armed state, then waits on session.usage for its no-reading warning.
+  let release!: () => void
+  w.gate = new Promise(r => (release = r))
+  const ending = end($, 't1')
+  await new Promise(r => setTimeout(r, 0))
+  const measuring = measure($, w, 90) // trips while turn.complete is still waiting
+  await new Promise(r => setTimeout(r, 0))
+  release()
+  w.gate = undefined
+  await Promise.all([ending, measuring])
+  expect((await run($, 'token-utilization')).text).toMatch(/stopped\.$/)
+  expect(w.status).toBe('stopped at the usage limit')
 })
 
 test('the state survives a reload', async ($, on) => {
