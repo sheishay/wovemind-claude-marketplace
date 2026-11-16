@@ -405,7 +405,8 @@ class SvgCheck(HTMLParser):
     """Parse an svg fragment and record why it is unsafe, if it is."""
 
     def __init__(self):
-        HTMLParser.__init__(self, convert_charrefs=True)
+        # Raw text, so a "<" that Python reads as text but a browser may read as a tag is visible in handle_data.
+        HTMLParser.__init__(self, convert_charrefs=False)
         self.stack, self.roots, self.problem, self.trailing = [], 0, None, False
 
     def fail(self, msg):
@@ -422,6 +423,9 @@ class SvgCheck(HTMLParser):
             val = (val or "").strip().lower().replace(" ", "")
             if name.startswith("on"):
                 self.fail("event attribute %s is not allowed" % name)
+            # CSS can load a resource without a plain url(...), through image-set() or an escape such as u\72l(.
+            if name == "style" or "\\" in val:
+                self.fail("attribute %s: style attributes and backslashes are not allowed" % name)
             if name in REF_ATTRS and not val.startswith("#"):
                 self.fail("%s must point inside the svg (start with #)" % name)
             if "javascript:" in val or re.search(r"url\((?!['\"]?#)", val):
@@ -443,6 +447,9 @@ class SvgCheck(HTMLParser):
     def handle_data(self, data):
         if not self.stack and data.strip():
             self.fail("text outside the <svg> element")
+        # Python passes a malformed tag, such as one with an unclosed quote, through as text; a browser still builds it.
+        if "<" in data:
+            self.fail("a literal < in text (write &lt;) or a malformed tag")
 
     def handle_comment(self, data):
         pass
@@ -768,6 +775,9 @@ def selftest():
         "<svg><g>",
         "<svg><!--><img src=x onerror=alert(1)>--></svg>",
         "<svg><title><img src=x onerror=alert(1)></title></svg>",
+        "<svg><text><img onerror=alert(1) src=\"x></text></svg>",
+        "<svg style=\"background-image:image-set('//evil.example/a.png' 1x)\"></svg>",
+        "<svg><rect fill=\"u\\72l(//evil.example/a)\"/></svg>",
     ]
     for bad in bad_svgs:
         rejects(lambda s, bad=bad: blk(s, 2, 4).update(svg=bad), "spec.sections[2].blocks[4].svg")

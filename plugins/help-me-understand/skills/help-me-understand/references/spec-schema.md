@@ -44,7 +44,8 @@ The script rejects the fragment, naming the problem, if it breaks any of these:
 
 - It must be exactly one `<svg>` element with nothing after it.
 - Allowed elements: `svg`, `g`, `defs`, `marker`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text`, `tspan`, `linearGradient`, `radialGradient`, `stop`, `use`, `symbol`, `clipPath`, `mask`, `pattern`. No `script`, `style`, `foreignObject`, `a`, `image`, `title` or `desc`, and no comments, CDATA or declarations (anything starting with `<!`).
-- No `on...` event attributes. `href` and `xlink:href` must start with `#`. `url(...)` may only point at `#id`. No URLs anywhere.
+- No `on...` event attributes and no `style` attribute (use presentation attributes such as `fill` and `font-size`). `href` and `xlink:href` must start with `#`. `url(...)` may only point at `#id`. No URLs anywhere, and no backslashes in attribute values.
+- Write `<` in text as `&lt;`; a literal `<` is rejected.
 
 Draw strokes and text in `currentColor` so the diagram follows the light and dark themes. Set a `viewBox` and leave out `width` and `height`. Add `role="img"` and an `aria-label` that states what the picture shows; use `aria-label` rather than a `<title>` element. `xmlns` attributes are removed automatically.
 
