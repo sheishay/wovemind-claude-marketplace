@@ -283,11 +283,11 @@ def r_stepper(b, p):
         sp = "%s.steps[%d]" % (p, n)
         body = paras(capped(s, "text", sp, "step_text"))
         if s.get("block") is not None:
-            # Only a visual may sit inside a step, so a step cannot hide extra prose, collapsed text or a second stepper.
+            # A step may hold a visual or the command it runs, but not extra prose, collapsed text or a second stepper.
             inner = need(s, "block", sp, dict)
             kind = need(inner, "type", sp + ".block")
-            if kind in NOT_VISUAL or kind == "stepper":
-                raise SpecError("%s.block.type: a step may hold one visual block, not %r" % (sp, kind))
+            if kind != "code" and (kind in NOT_VISUAL or kind == "stepper"):
+                raise SpecError("%s.block.type: a step may hold one visual or code block, not %r" % (sp, kind))
             body += render_block(inner, sp + ".block")
         out.append('<li class="step"><h4><span class="num">%d</span>%s</h4>%s</li>' % (
             n + 1, inline(capped(s, "title", sp, "step_title")), body))
@@ -1011,7 +1011,7 @@ def page_text(html):
 
 
 # A number, or a name a reader would search for: snake_case, camelCase, a dotted path or a call such as toMonday(x).
-_TOKEN = re.compile(r"\d[\d,]*(?:\.\d+)?|[A-Za-z_][\w./-]*[_.\d][\w./-]*|[A-Za-z]+[a-z][A-Z]\w*")
+_TOKEN = re.compile(r"\d+(?:\.\d+)?|[A-Za-z_][\w./-]*[_.\d][\w./-]*|[A-Za-z]+[a-z][A-Z]\w*")
 
 
 def missing_tokens(source, page):
@@ -1021,13 +1021,16 @@ def missing_tokens(source, page):
     sentence that has neither, so it supports the source check and does not replace it.
     """
     def norm(text):
-        return re.sub(r"(?<=\d),(?=\d)", "", text)
+        return re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", text)
 
     page = norm(page)
     seen, gone = set(), []
     for tok in _TOKEN.findall(norm(source)):
         tok = tok.rstrip(".,/-")
         if len(tok) < 2 and not tok.isdigit() or tok in seen:
+            continue
+        # A plain word that ended a sentence ("Redis.") is not an identifier; it needs _, a dot, a digit or camelCase.
+        if not tok[0].isdigit() and not re.search(r"[_.\d]|[a-z][A-Z]", tok):
             continue
         seen.add(tok)
         # A number must not match inside a longer one, so 43 is not "found" in 1437.
@@ -1041,8 +1044,12 @@ def main(argv):
     if len(argv) == 2 and argv[1] == "--selftest":
         return selftest()
     if len(argv) == 4 and argv[1] == "--coverage":
-        with open(argv[2], encoding="utf-8") as src, open(argv[3], encoding="utf-8") as page:
-            gone = missing_tokens(src.read(), page.read())
+        try:
+            with open(argv[2], encoding="utf-8") as src, open(argv[3], encoding="utf-8") as page:
+                gone = missing_tokens(src.read(), page.read())
+        except OSError as exc:
+            sys.stderr.write("cannot read %s\n" % exc)
+            return 1
         sys.stdout.write("MISSING from the page (%d):\n%s\n" % (len(gone), "\n".join(gone)) if gone else "NONE missing\n")
         return 0
     if len(argv) != 3:
@@ -1170,6 +1177,7 @@ def selftest():
     assert first_read_words({"type": "list", "items": ["a b"] * 7}) == 14
     # The coverage check lists source numbers and identifiers the page lost, and is not fooled by a longer number.
     assert missing_tokens("Cut 43% of 1,437 rows in host_topics via toMonday(x) at 9.5x.", "1437 rows, host_topics, 19.5x") == ["43", "toMonday", "9.5"]
+    assert missing_tokens("We chose Redis. Use e.g. Postgres. Steps 1,2,3.", "We picked it. Steps 1, 2, 3") == ["e.g"]
     assert missing_tokens("Keep 5 of 1,200 in s3.go, such as .000000", "5 of 1,200 in `s3.go` (.000000)") == []
     assert first_read_words({"type": "details", "summary": "one two", "text": "hidden words here"}) == 2
     assert spec_words({"icon": "database", "label": "two words"}) == 2
@@ -1341,7 +1349,9 @@ def selftest():
     rejects(lambda s: blk(s, 2, 0).update(items=[{"label": "x", "value": 1}] * (MAX_CHART_ITEMS + 1)), "spec.sections[2].blocks[0].items")
     rejects(lambda s: blk(s, 1, 0).update(steps=[{"title": "x", "text": "y"}] * (MAX_STEPS + 1)), "spec.sections[1].blocks[0].steps")
     rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "details", "summary": "x", "text": "y"}), "spec.sections[1].blocks[0].steps[0].block.type")
-    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "block.type: a step may hold one visual block, not 'text'")
+    rejects(lambda s: blk(s, 1, 0)["steps"][0].update(block={"type": "text", "text": "y"}), "block.type: a step may hold one visual or code block, not 'text'")
+    assert "<pre><code>ls</code></pre>" in build(dict(SAMPLE, sections=[{"heading": "x", "short": "x", "blocks": [
+        {"type": "stepper", "steps": [{"title": "Run it", "text": "List the files.", "block": {"type": "code", "code": "ls"}}]}]}]))
     rejects(lambda s: sec(s, 0)["blocks"].append({"type": "check", "question": "x", "answer": "y"}), "spec.sections[0].blocks")
     rejects(lambda s: blk(s, 3, 1)["cards"].extend([{"title": "x"}] * MAX_CARDS), "spec.sections[3].blocks[1].cards")
     rejects(lambda s: s.update(gist=dict(VERDICT, alternatives=[{"name": long_(LIMITS["alt_name"]), "why_not": "b"}])), "spec.gist.alternatives[0].name")
