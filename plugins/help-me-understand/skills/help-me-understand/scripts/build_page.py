@@ -115,7 +115,8 @@ def wrap(text, width):
 
 
 def fmt(n):
-    return ("%d" % n) if float(n).is_integer() else ("%.2f" % n).rstrip("0").rstrip(".")
+    """Format a chart value with thousands separators, so 8000000 reads as 8,000,000."""
+    return "{:,d}".format(int(n)) if float(n).is_integer() else "{:,.2f}".format(n).rstrip("0").rstrip(".")
 
 
 def figure(inner, caption, cls):
@@ -707,6 +708,7 @@ def selftest():
     for needle in ("min read", "Bottom line", "On this page", "Also worth knowing", "Next action", 'id="progress"', "<code>GET /users</code>", "2 more"):
         assert needle in html, "missing %r" % needle
     assert "xmlns" not in html
+    assert fmt(8000000) == "8,000,000" and fmt(2) == "2" and fmt(1234.5) == "1,234.5"
     # Collapsed text (details, check answers, list items past the visible ones, tangents) is not part of the first read.
     assert 0 < first_read_words(SAMPLE) < spec_words(SAMPLE)
     assert first_read_words({"type": "list", "items": ["a b"] * (VISIBLE_ITEMS + 3)}) == 2 * VISIBLE_ITEMS
