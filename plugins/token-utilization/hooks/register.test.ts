@@ -537,3 +537,19 @@ test('a reload during the wrap-up keeps the ceiling and the wrap-up turn', async
   await end($, 't2', 'Done: A.')
   expect(w.written[HANDOFF]).toBe('Done: A.')
 })
+
+test('T19: limit 0 is refused, 100 is accepted; the ceiling is capped at 100', async ($, on) => {
+  const w = engine(on)
+  await start($)
+  expect((await say($, 'A until /session-token-utilization gets to 0%')).drop).toMatch(/name a percentage/)
+  w.answers = ['Wrap up first']
+  await say($, 'B until /session-token-utilization gets to 98%')
+  await turn($, 't1')
+  await measure($, w, 98)
+  expect(w.aborted).toEqual(['t1'])
+  expect(w.status).toBe('wrapping up, cut off at session 100% (now 98%)')
+  expect(w.sent.at(-1)!.text).toContain('Usage is cut off at 100%.')
+  w.answers = ['Stop immediately']
+  await say($, 'C until /session-token-utilization gets to 100%')
+  expect(w.status).toBe('stop at session 100% (now 98%), immediate')
+})
