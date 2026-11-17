@@ -29,7 +29,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from html import escape, unescape
@@ -218,8 +217,12 @@ def attach_specs(root, plugins, errors):
                 plugin["items"].append(item)
             item["spec_path"] = os.path.join(ddir, fn)
             try:
-                item["spec"] = read_json(item["spec_path"])
-            except (OSError, ValueError) as exc:
+                spec = read_json(item["spec_path"])
+                if isinstance(spec, dict):
+                    item["spec"] = spec
+                else:
+                    errors.append("%s: spec must be a JSON object" % rel)
+            except (OSError, ValueError, RecursionError) as exc:
                 errors.append("%s: invalid JSON: %s" % (rel, exc))
     for p in plugins:
         p["items"].sort(key=lambda i: (KIND_ORDER[i["kind"]], i["name"]))
@@ -523,7 +526,8 @@ def render_plugin(p, plugins):
     facts_html = "".join("<div><dt>%s</dt><dd>%s</dd></div>" % kv for kv in facts)
     names = {x["name"] for x in plugins}
     req = []
-    deps = m.get("dependencies") or []
+    deps = [d.get("name") if isinstance(d, dict) else d for d in m.get("dependencies") or []]
+    deps = [d for d in deps if isinstance(d, str)]
     if deps:
         req.append('<p class="w-side-label">Installed along with it</p><ul class="w-deps">%s</ul>' % "".join(
             '<li><a href="../%s/">%s</a></li>' % (escape(d), escape(d)) if d in names else "<li>%s</li>" % escape(d) for d in deps))
@@ -573,20 +577,13 @@ def split_fragment(html):
     return title, rest
 
 
-def render_howto(root, p, i, prev_i, next_i, errors):
+def render_howto(p, i, prev_i, next_i, errors):
     rel = "../../../"
-    fd, tmp = tempfile.mkstemp(suffix=".html")
-    os.close(fd)
     try:
-        proc = subprocess.run([sys.executable, os.path.join(root, BUILD_PAGE), i["spec_path"], tmp],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, universal_newlines=True)
-        if proc.returncode != 0:
-            msg = (proc.stderr.strip().splitlines() or ["exit %d" % proc.returncode])[-1]
-            errors.append("site/specs/%s/%s.json: does not render: %s" % (p["name"], i["name"], msg))
-            return None
-        title_esc, fragment = split_fragment(read_text(tmp))
-    finally:
-        os.unlink(tmp)
+        title_esc, fragment = split_fragment(_build_page.build(i["spec"]))
+    except (_build_page.SpecError, RecursionError) as exc:
+        errors.append("site/specs/%s/%s.json: does not render: %s" % (p["name"], i["name"], str(exc).replace("\n", "; ")))
+        return None
     inv = invocation(p, i)
     shown = escape(inv) + ((' <span class="w-hint">%s</span>' % escape(i["hint"])) if i["hint"] else "")
     pager = []
@@ -659,7 +656,7 @@ def build(root, out):
     for p in plugins:
         with_spec = [i for i in p["items"] if "spec" in i]
         for n, i in enumerate(with_spec):
-            html = render_howto(root, p, i, with_spec[n - 1] if n else None,
+            html = render_howto(p, i, with_spec[n - 1] if n else None,
                                 with_spec[n + 1] if n + 1 < len(with_spec) else None, errors)
             if html is not None:
                 i["page"] = True
@@ -704,7 +701,7 @@ def selftest():
         write(os.path.join(fake, "plugins", "demo", "skills", "no-spec", "SKILL.md"), "---\nname: no-spec\nargument-hint: <x>\n---\n")
         write(os.path.join(fake, "plugins", "demo", "commands", "cmd.md"), "---\ndescription: c\n---\n")
         for rel in ("demo/has-spec.json", "demo/cmd.json", "demo/pane.json", "demo/pan.json", "ghost/x.json"):
-            write(os.path.join(fake, "site", "specs", rel), "{}")
+            write(os.path.join(fake, "site", "specs", rel), "[]" if rel == "demo/cmd.json" else "{}")
         errs = []
         _, plugins = discover(fake, errs)
         attach_specs(fake, plugins, errs)
@@ -713,8 +710,12 @@ def selftest():
         assert [i["name"] for i in plugins[0]["items"]] == ["has-spec", "no-spec", "cmd", "pane"]
         assert any(e.startswith("missing spec: site/specs/demo/no-spec.json") and "/demo:no-spec" in e for e in errs), errs
         assert any("pan.json" in e for e in errs) and any("ghost" in e for e in errs), errs  # `/pane` does not cover pan
-        assert len(errs) == 3, errs
+        assert any("cmd.json" in e and "must be a JSON object" in e for e in errs), errs
+        assert len(errs) == 4, errs
         assert invocation(plugins[0], plugins[0]["items"][3]) == "/pane"
+        bad = []
+        assert render_howto(plugins[0], plugins[0]["items"][0], None, None, bad) is None
+        assert len(bad) == 1 and "does not render" in bad[0] and "\n" not in bad[0], bad
 
         # External sources, URL schemes and path-safe names.
         fake2 = os.path.join(tmp, "repo2")
