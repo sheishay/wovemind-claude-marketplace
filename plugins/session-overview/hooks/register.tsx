@@ -30,6 +30,7 @@ type Entry = {
   nameSource?: string
   tmux?: string
   updatedAt?: number
+  root?: string // config root the entry was read from; set by loadEntries, never from the file
 }
 
 export const stateOf = (entry: Pick<Entry, 'status'>, alive: boolean): Session['state'] =>
@@ -45,8 +46,8 @@ export const projectOf = (cwd: string, home: string) => {
   return { path, worktree: m?.[2] }
 }
 
-export const transcriptPath = (home: string, cwd: string, id: string) =>
-  `${home}/.claude/projects/${cwd.replace(/[^A-Za-z0-9]/g, '-')}/${id}.jsonl`
+export const transcriptPath = (root: string, cwd: string, id: string) =>
+  `${root}/projects/${cwd.replace(/[^A-Za-z0-9]/g, '-')}/${id}.jsonl`
 
 export const groupSessions = (list: Session[], hidden: string[], home: string, stars: string[] = []) => {
   const groups = new Map<string, Session[]>()
@@ -109,11 +110,12 @@ export const makeGoalLookup = (d: GoalDeps) => {
   const parse = (l: string) => { try { return JSON.parse(l) } catch { return undefined } }
 
   const locate = async (e: Entry) => {
-    const derived = transcriptPath(d.home, e.cwd, e.sessionId)
+    const root = e.root ?? `${d.home}/.claude`
+    const derived = transcriptPath(root, e.cwd, e.sessionId)
     if (await d.exists(derived)) return derived
     if (!found.has(e.sessionId)) {
       // sessionId is validated by validEntry, so it is safe as a -name pattern.
-      const r = await d.run(['find', `${d.home}/.claude/projects`, '-maxdepth', '2', '-name', `${e.sessionId}.jsonl`]).catch(() => none)
+      const r = await d.run(['find', `${root}/projects`, '-maxdepth', '2', '-name', `${e.sessionId}.jsonl`]).catch(() => none)
       found.set(e.sessionId, firstLine(r.stdout) || null)
     }
     return found.get(e.sessionId) ?? undefined
@@ -149,6 +151,36 @@ export const makeGoalLookup = (d: GoalDeps) => {
   return { goalOf, prune, size: () => goals.size + found.size }
 }
 
+// Where session registries live: default dir, CLAUDE_CONFIG_DIR, and each claude-swap (cswap) profile.
+export const registryDirs = (home: string, configDir: string | undefined, swapProfiles: string[]) =>
+  [...new Set([
+    `${home}/.claude/sessions`,
+    ...(configDir ? [`${configDir.replace(/\/+$/, '')}/sessions`] : []),
+    ...swapProfiles.map(p => `${home}/.claude-swap-backup/sessions/${p}/sessions`),
+  ])]
+
+export const loadEntries = async ($: any, home: string) => {
+  const configDir = await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)
+  const swap = await $.fs.list(`${home}/.claude-swap-backup/sessions`).catch(() => [])
+  const dirs = registryDirs(home, configDir, swap.filter((d: { kind?: string }) => d.kind === 'dir').map((d: { name: string }) => d.name))
+  const byId = new Map<string, Entry>()
+  let failed = 0
+  const lists = await Promise.all(dirs.map(dir => $.fs.list(dir).then((fs: { name: string }[]) => fs.filter(f => f.name.endsWith('.json')), () => { failed++; return [] })))
+  for (const [i, files] of lists.entries()) {
+    const dir = dirs[i]
+    for (const f of files) {
+      try {
+        const e = JSON.parse(await $.fs.read(`${dir}/${f.name}`) as string)
+        const old = byId.get(e?.sessionId)
+        if (validEntry(e) && (!old || (e.updatedAt ?? 0) > (old.updatedAt ?? 0))) byId.set(e.sessionId, { ...e, root: dir.slice(0, -'/sessions'.length) })
+      } catch { /* half-written file */ }
+    }
+  }
+  // Every registry unreadable: throw so refresh keeps the last list instead of blanking the pane.
+  if (failed === dirs.length) throw new Error('no session registry readable')
+  return [...byId.values()]
+}
+
 let timer: { cancel: () => void } | undefined
 const stop = () => {
   timer?.cancel()
@@ -171,11 +203,7 @@ const openPane = async ($: any, focus: boolean) => {
     busy = true
     try {
       await loadSaved($)
-      const files = (await $.fs.list(`${home}/.claude/sessions`)).filter((f: { name: string }) => f.name.endsWith('.json'))
-      const entries: Entry[] = []
-      for (const f of files) {
-        try { const e = JSON.parse(await $.fs.read(`${home}/.claude/sessions/${f.name}`) as string); if (validEntry(e)) entries.push(e) } catch { /* half-written file */ }
-      }
+      const entries = await loadEntries($, home)
       prune(entries.map(e => e.sessionId))
       const ps = entries.length
         ? await $.process.run(['ps', '-p', entries.map(e => e.pid).join(','), '-o', 'pid=']).catch(() => none)

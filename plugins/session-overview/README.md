@@ -13,7 +13,7 @@ claude plugin marketplace add wovemind-sg/claude-marketplace
 
 - A Claude Code version that loads plugin mods (the plugin registers a TypeScript module through `hooks/hooks.json`, not a skill).
 - Optional: `tmux`. Clicking a session switches your tmux client to it; outside tmux the list is read-only.
-- Works wherever Claude Code keeps its session files under `~/.claude/`.
+- Works wherever Claude Code keeps its session files under `~/.claude/`; it also scans `CLAUDE_CONFIG_DIR` and claude-swap (`cswap`) profile folders.
 
 ## What it sends to a model
 
@@ -60,4 +60,4 @@ my-app  ~/workspace
 
 ## Environment variables and settings
 
-No environment variables and no plugin settings. It only reads `~/.claude/sessions/*.json` and `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`.
+No environment variables and no plugin settings. It only reads `sessions/*.json` under `~/.claude`, `CLAUDE_CONFIG_DIR` and cswap profiles, and `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`.
