@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { GOAL_TTL_MS, activeToday, clean, toTitle, groupSessions, makeGoalLookup, projectOf, stateOf, tmuxPane, transcriptPath, validEntry } from './register'
+import { GOAL_TTL_MS, activeToday, clean, toTitle, groupSessions, makeGoalLookup, projectOf, registryDirs, loadEntries, stateOf, tmuxPane, transcriptPath, validEntry } from './register'
 
 test('stateOf maps the four states', () => {
   expect(stateOf({ status: 'busy' }, true)).toBe('running')
@@ -16,7 +16,7 @@ test('projectOf merges worktrees and shortens home', () => {
 })
 
 test('transcriptPath encodes every non-alphanumeric as dash', () => {
-  expect(transcriptPath('/H', '/home/a/ws/x/.claude/worktrees/w', 'id')).toBe(
+  expect(transcriptPath('/H/.claude', '/home/a/ws/x/.claude/worktrees/w', 'id')).toBe(
     '/H/.claude/projects/-home-a-ws-x--claude-worktrees-w/id.jsonl',
   )
 })
@@ -69,7 +69,7 @@ const fake = (files: Record<string, string>, finds: Record<string, string> = {})
   return { g, calls, tick: (ms: number) => { t += ms } }
 }
 const entry = { pid: 1, sessionId: 'abc', cwd: '/p', status: 'idle' }
-const path = transcriptPath('/H', '/p', 'abc')
+const path = transcriptPath('/H/.claude', '/p', 'abc')
 
 test('goalOf skips tag-wrapped prompts and uses the next plain one', async () => {
   const { g } = fake({
@@ -188,4 +188,126 @@ test('activeToday edges: future time, exact midnight, negative, now itself', () 
   expect(activeToday(now, now)).toBe(true)
   expect(activeToday(-5, now)).toBe(false)
   expect(activeToday(NaN, now)).toBe(false)
+})
+
+test('registryDirs adds CLAUDE_CONFIG_DIR and swap profiles, deduped', () => {
+  expect(registryDirs('/H', undefined, [])).toEqual(['/H/.claude/sessions'])
+  const swap = '/H/.claude-swap-backup/sessions/2-a'
+  expect(registryDirs('/H', `${swap}/`, ['2-a', '3-b'])).toEqual([
+    '/H/.claude/sessions',
+    `${swap}/sessions`,
+    '/H/.claude-swap-backup/sessions/3-b/sessions',
+  ])
+})
+
+test('loadEntries merges registries and keeps the newest copy of a duplicated id', async () => {
+  const swap = '/H/.claude-swap-backup/sessions'
+  const e = (sessionId: string, updatedAt: number) => JSON.stringify({ pid: 1, sessionId, cwd: '/p', status: 'idle', updatedAt })
+  const files: Record<string, string> = {
+    '/H/.claude/sessions/a.json': e('same', 1),
+    [`${swap}/2-a/sessions/b.json`]: e('same', 5),
+    [`${swap}/2-a/sessions/c.json`]: e('other', 2),
+  }
+  const $ = {
+    env: { get: async () => undefined },
+    fs: {
+      list: async (d: string) => {
+        if (d === swap) return [{ name: '2-a', kind: 'dir' }, { name: 'x', kind: 'file' }]
+        const pre = `${d}/`
+        return Object.keys(files).filter(k => k.startsWith(pre)).map(k => ({ name: k.slice(pre.length), kind: 'file' }))
+      },
+      read: async (p: string) => files[p],
+    },
+  }
+  const got = await loadEntries($, '/H')
+  expect(got.map(x => x.sessionId).sort()).toEqual(['other', 'same'])
+  expect(got.find(x => x.sessionId === 'same')?.updatedAt).toBe(5)
+})
+
+// Fake $ over an in-memory file map; dirs in `reject` make fs.list throw.
+const fakeFs = (files: Record<string, string>, opts: { reject?: string[]; env?: () => Promise<string | undefined>; swap?: any } = {}) => {
+  const swap = '/H/.claude-swap-backup/sessions'
+  return {
+    env: { get: opts.env ?? (async () => undefined) },
+    fs: {
+      list: async (d: string) => {
+        if (opts.reject?.includes(d)) throw new Error('EACCES')
+        if (d === swap && opts.swap !== undefined) return opts.swap
+        const pre = `${d}/`
+        const names = Object.keys(files).filter(k => k.startsWith(pre)).map(k => k.slice(pre.length))
+        if (!names.length && d !== '/H/.claude/sessions') throw new Error('ENOENT')
+        return names.map(name => ({ name, kind: 'file' }))
+      },
+      read: async (p: string) => files[p],
+    },
+  }
+}
+const ent = (sessionId: string, updatedAt = 1) => JSON.stringify({ pid: 1, sessionId, cwd: '/p', updatedAt })
+
+test('loadEntries: one rejecting dir still loads the others', async () => {
+  const bad = '/H/.claude-swap-backup/sessions/2-a/sessions'
+  const $ = fakeFs({ '/H/.claude/sessions/a.json': ent('a') }, { reject: [bad], swap: [{ name: '2-a', kind: 'dir' }] })
+  expect((await loadEntries($, '/H')).map(x => x.sessionId)).toEqual(['a'])
+})
+
+test('loadEntries: every dir rejecting throws', async () => {
+  const $ = fakeFs({}, { reject: ['/H/.claude/sessions', '/H/.claude-swap-backup/sessions/2-a/sessions'], swap: [{ name: '2-a', kind: 'dir' }] })
+  await expect(loadEntries($, '/H')).rejects.toThrow()
+})
+
+test('loadEntries: env.get rejecting or undefined falls back to default dirs', async () => {
+  const files = { '/H/.claude/sessions/a.json': ent('a') }
+  expect((await loadEntries(fakeFs(files, { env: async () => { throw new Error('x') } }), '/H')).length).toBe(1)
+  expect((await loadEntries(fakeFs(files), '/H')).length).toBe(1)
+})
+
+test('loadEntries: CLAUDE_CONFIG_DIR registry is read', async () => {
+  const $ = fakeFs({ '/C/sessions/c.json': ent('c') }, { env: async () => '/C/' })
+  expect((await loadEntries($, '/H')).map(x => x.sessionId)).toEqual(['c'])
+})
+
+test('loadEntries: missing swap backup dir is not an error', async () => {
+  const $ = fakeFs({ '/H/.claude/sessions/a.json': ent('a') })
+  expect((await loadEntries($, '/H')).length).toBe(1)
+})
+
+test('loadEntries: only invalid or half-written JSON yields an empty list, not a throw', async () => {
+  const $ = fakeFs({
+    '/H/.claude/sessions/a.json': '{"pid":1,"sess',
+    '/H/.claude/sessions/b.json': 'null',
+    '/H/.claude/sessions/c.json': ent('../etc', 1),
+    '/H/.claude/sessions/d.json': JSON.stringify({ pid: 0, sessionId: 'd', cwd: '/p' }),
+    '/H/.claude/sessions/e.txt': ent('e'),
+  })
+  expect(await loadEntries($, '/H')).toEqual([])
+})
+
+test('loadEntries: non-dir entries under swap sessions are ignored', async () => {
+  const seen: string[] = []
+  const $ = fakeFs({ '/H/.claude/sessions/a.json': ent('a') }, { swap: [{ name: 'f.key', kind: 'file' }, { name: 'l', kind: 'symlink' }, { name: '2-a', kind: 'dir' }] })
+  const list = $.fs.list
+  $.fs.list = async (d: string) => { seen.push(d); return list(d) }
+  await loadEntries($, '/H')
+  expect(seen.filter(d => d.endsWith('/sessions/sessions') || /sessions\/[^/]+\/sessions$/.test(d))).toEqual(['/H/.claude-swap-backup/sessions/2-a/sessions'])
+})
+
+test('loadEntries: an invalid newer duplicate cannot displace a valid entry', async () => {
+  const swap = '/H/.claude-swap-backup/sessions/2-a/sessions'
+  const $ = fakeFs({
+    '/H/.claude/sessions/a.json': ent('same', 1),
+    [`${swap}/b.json`]: JSON.stringify({ pid: -5, sessionId: 'same', cwd: '/p', updatedAt: 99 }),
+  }, { swap: [{ name: '2-a', kind: 'dir' }] })
+  const got = await loadEntries($, '/H')
+  expect(got.length).toBe(1)
+  expect(got[0]?.updatedAt).toBe(1)
+})
+
+test('transcript lookup uses the entry root; a root inside the JSON is ignored', async () => {
+  const $ = fakeFs({
+    '/C/sessions/c.json': JSON.stringify({ pid: 1, sessionId: 'c', cwd: '/p', status: 'idle', root: '/evil' }),
+  }, { env: async () => '/C' })
+  const [e] = await loadEntries($, '/H')
+  expect(e!.root).toBe('/C')
+  const { g } = fake({ [transcriptPath('/C', '/p', 'c')]: jsonl({ type: 'ai-title', aiTitle: 'From C' }) })
+  expect(await g.goalOf(e!)).toBe('From C')
 })

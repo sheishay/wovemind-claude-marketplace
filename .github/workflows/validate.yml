@@ -39,11 +39,13 @@ jobs:
             plugins/ui-audit/skills/capture/scripts/dep_hash.py \
             plugins/ui-audit/skills/capture/scripts/diff_images.py \
             plugins/ui-audit/skills/capture/scripts/build_report.py \
+            plugins/ui-audit/skills/capture/scripts/capture.py \
             plugins/compliance-audit/skills/audit/scripts/detect_signals.py \
             plugins/compliance-audit/skills/audit/scripts/license_scan.py \
             plugins/compliance-audit/skills/apply/scripts/parse_cards.py \
             plugins/design-inspiration/skills/mockup/scripts/strip_wrapper.py \
-            plugins/help-me-understand/skills/help-me-understand/scripts/build_page.py; do
+            plugins/help-me-understand/skills/help-me-understand/scripts/build_page.py \
+            site/build.py; do
             echo "== $f"
             python "$f" --selftest
           done
